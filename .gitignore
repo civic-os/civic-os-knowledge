@@ -3,7 +3,7 @@ kb-server
 /bin/
 
 # Bundle data (lives at runtime, not in Git)
-bundle/
+/bundle/
 .versions/
 /viz.html
 
