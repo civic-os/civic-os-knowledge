@@ -1,0 +1,25 @@
+# Build output
+kb-server
+/bin/
+
+# Bundle data (lives at runtime, not in Git)
+bundle/
+.versions/
+viz.html
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local-only files (source material, private notes)
+LOCAL_*.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
