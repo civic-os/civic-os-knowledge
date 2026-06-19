@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Civic OS Knowledge Graph</title>
+<script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/marked@15.0.4/marked.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; }
+#controls { position: fixed; top: 0; left: 0; right: 0; z-index: 10; background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 20px; display: flex; gap: 12px; align-items: center; }
+#search { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 6px 12px; font-size: 14px; width: 300px; }
+#search:focus { outline: none; border-color: #58a6ff; }
+#type-filter { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 6px 12px; font-size: 14px; }
+#count { color: #8b949e; font-size: 13px; margin-left: auto; }
+#logout { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+#logout:hover { color: #c9d1d9; border-color: #8b949e; }
+#main { position: fixed; top: 52px; bottom: 0; left: 0; right: 0; display: flex; }
+#cy { flex: 1; min-width: 200px; }
+#divider { width: 5px; background: #30363d; cursor: col-resize; flex-shrink: 0; }
+#divider:hover, #divider.dragging { background: #58a6ff; }
+#detail { width: 50%; min-width: 200px; background: #161b22; border-left: 1px solid #30363d; padding: 20px; overflow-y: auto; }
+#detail h2 { font-size: 16px; margin-bottom: 8px; color: #f0f6fc; }
+#detail .meta { color: #8b949e; font-size: 13px; margin-bottom: 4px; }
+#detail .tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+#detail .tag { background: #1f6feb33; color: #58a6ff; padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+#detail .links { margin-top: 12px; }
+#detail .links h3 { font-size: 14px; color: #8b949e; margin-bottom: 6px; }
+#detail .link-item { color: #58a6ff; cursor: pointer; font-size: 13px; padding: 2px 0; }
+#detail .link-item:hover { text-decoration: underline; }
+#detail .body { margin-top: 16px; padding-top: 16px; border-top: 1px solid #30363d; font-size: 13px; line-height: 1.6; }
+#detail .body h1, #detail .body h2, #detail .body h3 { color: #f0f6fc; margin: 12px 0 6px; }
+#detail .body h1 { font-size: 16px; } #detail .body h2 { font-size: 15px; } #detail .body h3 { font-size: 14px; }
+#detail .body p { margin: 6px 0; }
+#detail .body a { color: #58a6ff; }
+#detail .body code { background: #0d1117; padding: 2px 5px; border-radius: 3px; font-size: 12px; }
+#detail .body pre { background: #0d1117; padding: 10px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+#detail .body pre code { padding: 0; }
+#detail .body table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+#detail .body th, #detail .body td { border: 1px solid #30363d; padding: 4px 8px; text-align: left; }
+#detail .body th { background: #0d1117; }
+#detail .body ul, #detail .body ol { padding-left: 20px; margin: 6px 0; }
+.empty { color: #484f58; font-style: italic; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <input id="search" type="text" placeholder="Search concepts...">
+  <select id="type-filter"><option value="">All types</option></select>
+  <span id="count"></span>
+  <button id="logout" onclick="window.location='/auth/logout'">Logout</button>
+</div>
+<div id="main">
+  <div id="cy"></div>
+  <div id="divider"></div>
+  <div id="detail"><p class="empty">Click a node to view details</p></div>
+</div>
+<script>
+// DATA_PLACEHOLDER will be replaced by the generator
+const graphData = /*DATA_JSON*/{"nodes":[],"edges":[]}/*END_DATA*/;
+
+const typeColors = {
+  'Client Profile': '#f97316', 'Decision Record': '#8b5cf6', 'Runbook': '#10b981',
+  'Project Specification': '#3b82f6', 'Proposal': '#ec4899', 'Strategy Document': '#f59e0b',
+  'Research Analysis': '#06b6d4', 'Meeting Note': '#6366f1', 'Infrastructure Component': '#ef4444',
+  'Instance Deployment': '#14b8a6', 'Log': '#a855f7', 'Note': '#64748b'
+};
+function typeColor(t) { return typeColors[t] || '#6b7280'; }
+
+// Build Cytoscape elements
+const elements = [];
+const types = new Set();
+graphData.nodes.forEach(n => {
+  types.add(n.type);
+  elements.push({ data: { id: n.id, label: n.title || n.id, type: n.type, description: n.description || '', tags: n.tags || [], resource: n.resource || '', timestamp: n.timestamp || '', body: n.body || '' }, classes: 'concept' });
+});
+graphData.edges.forEach(e => {
+  elements.push({ data: { source: e.source, target: e.target } });
+});
+
+// Populate type filter
+const typeFilter = document.getElementById('type-filter');
+[...types].sort().forEach(t => {
+  const opt = document.createElement('option');
+  opt.value = t; opt.textContent = t;
+  typeFilter.appendChild(opt);
+});
+
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: elements,
+  style: [
+    { selector: 'node', style: { 'label': 'data(label)', 'font-size': '11px', 'color': '#c9d1d9', 'text-valign': 'bottom', 'text-margin-y': 6, 'background-color': el => typeColor(el.data('type')), 'width': 24, 'height': 24, 'border-width': 0 }},
+    { selector: 'edge', style: { 'width': 1, 'line-color': '#30363d', 'target-arrow-color': '#30363d', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'arrow-scale': 0.6 }},
+    { selector: '.highlighted', style: { 'border-width': 3, 'border-color': '#58a6ff', 'width': 32, 'height': 32 }},
+    { selector: '.faded', style: { 'opacity': 0.15 }},
+  ],
+  layout: { name: 'cose', animate: false, nodeRepulsion: 8000, idealEdgeLength: 100 },
+  minZoom: 0.2, maxZoom: 5
+});
+
+// Detail panel
+const detail = document.getElementById('detail');
+cy.on('tap', 'node', e => {
+  const d = e.target.data();
+  let html = `<h2>${d.label}</h2>`;
+  html += `<div class="meta">${d.type}</div>`;
+  if (d.description) html += `<div class="meta">${d.description}</div>`;
+  if (d.timestamp) html += `<div class="meta">${d.timestamp}</div>`;
+  if (d.resource) html += `<div class="meta"><a href="${d.resource}" target="_blank" style="color:#58a6ff">${d.resource}</a></div>`;
+  if (d.tags && d.tags.length) html += `<div class="tags">${d.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>`;
+  // Backlinks
+  const connected = e.target.neighborhood('node');
+  if (connected.length) {
+    html += `<div class="links"><h3>Connected (${connected.length})</h3>`;
+    connected.forEach(n => { html += `<div class="link-item" data-id="${n.id()}">${n.data('label')}</div>`; });
+    html += `</div>`;
+  }
+  if (d.body) html += `<div class="body">${marked.parse(d.body)}</div>`;
+  detail.innerHTML = html;
+  detail.querySelectorAll('.link-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const node = cy.getElementById(el.dataset.id);
+      if (node.length) { cy.animate({ center: { eles: node }, zoom: 2 }, { duration: 300 }); node.emit('tap'); }
+    });
+  });
+});
+cy.on('tap', e => { if (e.target === cy) detail.innerHTML = '<p class="empty">Click a node to view details</p>'; });
+
+// Resizable divider
+const divider = document.getElementById('divider');
+const cyEl = document.getElementById('cy');
+let dragging = false;
+divider.addEventListener('mousedown', e => {
+  dragging = true;
+  divider.classList.add('dragging');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  e.preventDefault();
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const mainRect = document.getElementById('main').getBoundingClientRect();
+  const detailWidth = Math.max(200, mainRect.right - e.clientX);
+  detail.style.width = detailWidth + 'px';
+  cy.resize();
+});
+document.addEventListener('mouseup', () => {
+  if (!dragging) return;
+  dragging = false;
+  divider.classList.remove('dragging');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  cy.resize();
+});
+
+// Search
+const searchInput = document.getElementById('search');
+const countEl = document.getElementById('count');
+function applyFilters() {
+  const q = searchInput.value.toLowerCase();
+  const t = typeFilter.value;
+  cy.nodes().forEach(n => {
+    const d = n.data();
+    const matchQ = !q || d.label.toLowerCase().includes(q) || (d.description||'').toLowerCase().includes(q);
+    const matchT = !t || d.type === t;
+    if (matchQ && matchT) { n.removeClass('faded'); } else { n.addClass('faded'); }
+  });
+  cy.edges().forEach(e => {
+    if (e.source().hasClass('faded') || e.target().hasClass('faded')) e.addClass('faded'); else e.removeClass('faded');
+  });
+  const visible = cy.nodes().not('.faded').length;
+  countEl.textContent = `${visible} of ${cy.nodes().length} concepts`;
+}
+searchInput.addEventListener('input', applyFilters);
+typeFilter.addEventListener('change', applyFilters);
+applyFilters();
+</script>
+</body>
+</html>

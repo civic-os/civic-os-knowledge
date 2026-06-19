@@ -5,7 +5,7 @@ kb-server
 # Bundle data (lives at runtime, not in Git)
 bundle/
 .versions/
-viz.html
+/viz.html
 
 # Environment and secrets
 .env

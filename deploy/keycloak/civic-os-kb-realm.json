@@ -1,0 +1,187 @@
+{
+  "realm": "civic-os-kb",
+  "displayName": "Civic OS Knowledge (Local Dev)",
+  "enabled": true,
+  "sslRequired": "none",
+
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "registrationAllowed": false,
+  "verifyEmail": false,
+
+  "accessTokenLifespan": 43200,
+  "ssoSessionIdleTimeout": 43200,
+  "ssoSessionMaxLifespan": 86400,
+
+  "defaultSignatureAlgorithm": "RS256",
+
+  "roles": {
+    "realm": [
+      {
+        "name": "kb-viewer",
+        "description": "Can view the knowledge graph via viz.html"
+      },
+      {
+        "name": "kb-admin",
+        "description": "Full knowledge base administration"
+      },
+      {
+        "name": "offline_access",
+        "description": "${role_offline-access}"
+      },
+      {
+        "name": "uma_authorization",
+        "description": "${role_uma_authorization}"
+      },
+      {
+        "name": "default-roles-civic-os-kb",
+        "description": "${role_default-roles}",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "offline_access",
+            "uma_authorization"
+          ],
+          "client": {
+            "account": [
+              "view-profile",
+              "manage-account"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "defaultRole": {
+    "name": "default-roles-civic-os-kb",
+    "description": "${role_default-roles}",
+    "composite": true
+  },
+
+  "clients": [
+    {
+      "clientId": "civic-os-kb",
+      "name": "Civic OS Knowledge Base",
+      "description": "MCP server + viz.html for the corporate knowledgebase",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "secret": "civic-os-kb-secret",
+      "rootUrl": "",
+      "baseUrl": "",
+      "redirectUris": [
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8080"
+      ],
+      "attributes": {
+        "backchannel.logout.session.required": "true",
+        "frontchannel.logout.session.required": "true"
+      },
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "phone",
+        "offline_access"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "civic-os-kb",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles-id-token",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+
+  "users": [
+    {
+      "username": "kbviewer",
+      "email": "kbviewer@example.com",
+      "firstName": "KB",
+      "lastName": "Viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kbviewer",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["kb-viewer", "default-roles-civic-os-kb"]
+    },
+    {
+      "username": "kbadmin",
+      "email": "kbadmin@example.com",
+      "firstName": "KB",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kbadmin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["kb-viewer", "kb-admin", "default-roles-civic-os-kb"]
+    },
+    {
+      "username": "kbnorole",
+      "email": "kbnorole@example.com",
+      "firstName": "KB",
+      "lastName": "NoRole",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "kbnorole",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["default-roles-civic-os-kb"]
+    }
+  ],
+
+  "browserFlow": "browser",
+  "directGrantFlow": "direct grant",
+  "resetCredentialsFlow": "reset credentials",
+  "clientAuthenticationFlow": "clients"
+}

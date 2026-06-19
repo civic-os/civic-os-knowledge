@@ -1,0 +1,82 @@
+services:
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb --ignore-existing local/civic-os-kb;
+      echo 'Bucket civic-os-kb created';
+      "
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_URL: http://localhost:8082
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8082:8080"
+    command: start-dev --import-realm
+    volumes:
+      - ./deploy/keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  kb-server:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    environment:
+      KB_PORT: "8080"
+      KB_BUNDLE_DIR: /data/knowledge/bundle
+      KB_S3_ENDPOINT: http://minio:9000
+      KB_S3_REGION: us-east-1
+      KB_S3_BUCKET: civic-os-kb
+      KB_S3_PREFIX: knowledge/
+      KB_S3_ACCESS_KEY: minioadmin
+      KB_S3_SECRET_KEY: minioadmin
+      KB_S3_PATH_STYLE: "true"
+      KB_KEYCLOAK_URL: http://localhost:8082
+      KB_KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KB_KEYCLOAK_REALM: civic-os-kb
+      KB_KEYCLOAK_CLIENT_ID: civic-os-kb
+      KB_KEYCLOAK_CLIENT_SECRET: civic-os-kb-secret
+      KB_EXTERNAL_URL: http://localhost:8080
+      KB_SESSION_KEY: local-dev-session-key-32-chars!!
+      KB_VIZ_ROLES: kb-viewer,kb-admin
+
+volumes:
+  minio-data:

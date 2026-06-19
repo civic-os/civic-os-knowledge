@@ -1,0 +1,9 @@
+.git
+.github
+docs/
+templates/
+deploy/
+docker-compose.yaml
+.env*
+*.md
+!go.sum
