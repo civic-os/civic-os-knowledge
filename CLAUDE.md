@@ -59,7 +59,7 @@ civic-os-knowledge/
 ## Key Concepts
 
 - **OKF (Open Knowledge Format)**: Google Cloud's v0.1 spec for representing knowledge as markdown files with YAML frontmatter. Each file = one concept. The only required field is `type`.
-- **Concept**: A single unit of knowledge (client profile, runbook, decision record, etc.) stored as a markdown file with YAML frontmatter.
+- **Concept**: A single unit of knowledge stored as a markdown file with YAML frontmatter. Types: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis.
 - **Bundle**: The directory of concept files served by the MCP server. Lives at runtime, not in Git.
 - **viz.html**: A self-contained static HTML knowledge graph viewer (Cytoscape.js) generated from the OKF bundle. Provides search, type filtering, and backlink navigation.
 
