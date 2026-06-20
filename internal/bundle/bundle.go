@@ -1,16 +1,20 @@
 package bundle
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
+
+// ErrConflict is returned when an update's expected version doesn't match.
+var ErrConflict = errors.New("version conflict")
 
 // Bundle manages a directory of OKF concept files with versioning.
 type Bundle struct {
@@ -31,6 +35,45 @@ func NewBundle(rootDir string) (*Bundle, error) {
 	return &Bundle{rootDir: rootDir, verDir: verDir}, nil
 }
 
+// VerDir returns the versions directory path.
+func (b *Bundle) VerDir() string {
+	return b.verDir
+}
+
+// conceptVersion returns the current version of a concept by counting
+// version-named snapshots in .versions/{dir}/{name}.{N}.md.
+// Returns 1 if no snapshots exist. Must be called with lock held.
+func (b *Bundle) conceptVersion(path string) int {
+	name := strings.TrimSuffix(filepath.Base(path), ".md")
+	verDir := filepath.Join(b.verDir, filepath.Dir(path), name)
+
+	entries, err := os.ReadDir(verDir)
+	if err != nil {
+		return 1
+	}
+
+	highest := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		// Parse {name}.{N}.md
+		fname := strings.TrimSuffix(e.Name(), ".md")
+		parts := strings.SplitN(fname, ".", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		n, err := strconv.Atoi(parts[1])
+		if err != nil {
+			continue
+		}
+		if n > highest {
+			highest = n
+		}
+	}
+	return highest + 1
+}
+
 // Read reads and parses a concept file by its relative path.
 func (b *Bundle) Read(path string) (*Concept, error) {
 	b.mu.RLock()
@@ -40,7 +83,12 @@ func (b *Bundle) Read(path string) (*Concept, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	return ParseConcept(data, path)
+	c, err := ParseConcept(data, path)
+	if err != nil {
+		return nil, err
+	}
+	c.Version = b.conceptVersion(path)
+	return c, nil
 }
 
 // List returns all concept files in the bundle directory (recursively).
@@ -73,6 +121,7 @@ func (b *Bundle) listUnlocked() ([]*Concept, error) {
 			// Skip files that fail to parse (e.g., index.md without frontmatter)
 			return nil
 		}
+		c.Version = b.conceptVersion(rel)
 		concepts = append(concepts, c)
 		return nil
 	})
@@ -92,11 +141,14 @@ func (b *Bundle) Create(c *Concept) error {
 		return fmt.Errorf("concept already exists: %s", c.Path)
 	}
 
+	c.Version = 1
 	return b.writeFile(c)
 }
 
 // Update overwrites an existing concept file, creating a version snapshot first.
-func (b *Bundle) Update(c *Concept) error {
+// If expectedVersion > 0, the update is rejected with ErrConflict if the current
+// version doesn't match. Pass 0 to skip the check (backwards compatibility).
+func (b *Bundle) Update(c *Concept, expectedVersion int) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -106,22 +158,38 @@ func (b *Bundle) Update(c *Concept) error {
 		return fmt.Errorf("concept not found for update: %s", c.Path)
 	}
 
+	currentVersion := b.conceptVersion(c.Path)
+
+	if expectedVersion > 0 && expectedVersion != currentVersion {
+		return fmt.Errorf("%w: expected version %d but current is %d", ErrConflict, expectedVersion, currentVersion)
+	}
+
 	// Create version snapshot before overwriting
-	if err := b.snapshot(c.Path, existing); err != nil {
+	if err := b.snapshot(c.Path, existing, currentVersion); err != nil {
 		return fmt.Errorf("create version snapshot: %w", err)
 	}
 
+	c.Version = currentVersion + 1
 	return b.writeFile(c)
 }
 
-// History returns the timestamps of all version snapshots for a concept.
-func (b *Bundle) History(path string) ([]string, error) {
+// SnapshotPath returns the relative path of a snapshot file within the versions dir.
+// Useful for pushing snapshots to S3.
+func SnapshotPath(conceptPath string, version int) string {
+	name := strings.TrimSuffix(filepath.Base(conceptPath), ".md")
+	dir := filepath.Join(filepath.Dir(conceptPath), name)
+	return filepath.Join(dir, fmt.Sprintf("%s.%d.md", name, version))
+}
+
+// History returns the version numbers of all snapshots for a concept.
+func (b *Bundle) History(path string) ([]int, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	verPath := filepath.Join(b.verDir, path)
-	dir := strings.TrimSuffix(verPath, ".md")
-	entries, err := os.ReadDir(dir)
+	name := strings.TrimSuffix(filepath.Base(path), ".md")
+	verDir := filepath.Join(b.verDir, filepath.Dir(path), name)
+
+	entries, err := os.ReadDir(verDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -129,19 +197,28 @@ func (b *Bundle) History(path string) ([]string, error) {
 		return nil, fmt.Errorf("read version history: %w", err)
 	}
 
-	var timestamps []string
+	var versions []int
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
-			ts := strings.TrimSuffix(e.Name(), ".md")
-			timestamps = append(timestamps, ts)
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
 		}
+		fname := strings.TrimSuffix(e.Name(), ".md")
+		parts := strings.SplitN(fname, ".", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		n, err := strconv.Atoi(parts[1])
+		if err != nil {
+			continue
+		}
+		versions = append(versions, n)
 	}
-	sort.Strings(timestamps)
-	return timestamps, nil
+	sort.Ints(versions)
+	return versions, nil
 }
 
 // Diff returns a unified diff between a version snapshot and the current file.
-func (b *Bundle) Diff(path, timestamp string) (string, error) {
+func (b *Bundle) Diff(path string, version int) (string, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -151,12 +228,12 @@ func (b *Bundle) Diff(path, timestamp string) (string, error) {
 		return "", fmt.Errorf("read current %s: %w", path, err)
 	}
 
-	// Read version
-	verPath := filepath.Join(b.verDir, path)
-	verDir := strings.TrimSuffix(verPath, ".md")
-	versionData, err := os.ReadFile(filepath.Join(verDir, timestamp+".md"))
+	// Read version snapshot
+	name := strings.TrimSuffix(filepath.Base(path), ".md")
+	verDir := filepath.Join(b.verDir, filepath.Dir(path), name)
+	versionData, err := os.ReadFile(filepath.Join(verDir, fmt.Sprintf("%s.%d.md", name, version)))
 	if err != nil {
-		return "", fmt.Errorf("read version %s@%s: %w", path, timestamp, err)
+		return "", fmt.Errorf("read version %s@%d: %w", path, version, err)
 	}
 
 	dmp := diffmatchpatch.New()
@@ -183,13 +260,13 @@ func (b *Bundle) writeFile(c *Concept) error {
 	return os.WriteFile(fullPath, data, 0o644)
 }
 
-func (b *Bundle) snapshot(path string, data []byte) error {
-	verPath := filepath.Join(b.verDir, path)
-	verDir := strings.TrimSuffix(verPath, ".md")
+func (b *Bundle) snapshot(path string, data []byte, version int) error {
+	name := strings.TrimSuffix(filepath.Base(path), ".md")
+	verDir := filepath.Join(b.verDir, filepath.Dir(path), name)
 	if err := os.MkdirAll(verDir, 0o755); err != nil {
 		return err
 	}
 
-	ts := time.Now().UTC().Format("2006-01-02T15-04-05")
-	return os.WriteFile(filepath.Join(verDir, ts+".md"), data, 0o644)
+	filename := fmt.Sprintf("%s.%d.md", name, version)
+	return os.WriteFile(filepath.Join(verDir, filename), data, 0o644)
 }

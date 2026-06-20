@@ -31,25 +31,38 @@ func main() {
 	}
 
 	// S3 sync (optional)
-	var syncer *storage.Syncer
+	var bundleSyncer, versionsSyncer *storage.Syncer
 	if s3Endpoint := os.Getenv("KB_S3_ENDPOINT"); s3Endpoint != "" {
 		ctx := context.Background()
-		store, err := storage.NewSpacesStore(ctx, storage.SpacesConfig{
+		s3Cfg := storage.SpacesConfig{
 			Endpoint:  s3Endpoint,
 			Region:    envOr("KB_S3_REGION", "nyc3"),
 			Bucket:    os.Getenv("KB_S3_BUCKET"),
-			Prefix:    envOr("KB_S3_PREFIX", "knowledge/"),
 			AccessKey: os.Getenv("KB_S3_ACCESS_KEY"),
 			SecretKey: os.Getenv("KB_S3_SECRET_KEY"),
 			PathStyle: os.Getenv("KB_S3_PATH_STYLE") == "true",
-		})
-		if err != nil {
-			log.Fatalf("init S3: %v", err)
 		}
 
-		syncer = storage.NewSyncer(store, bundleDir)
-		if err := syncer.Pull(ctx); err != nil {
-			log.Printf("WARNING: S3 pull failed: %v", err)
+		// Bundle syncer
+		s3Cfg.Prefix = envOr("KB_S3_PREFIX", "knowledge/")
+		bundleStore, err := storage.NewSpacesStore(ctx, s3Cfg)
+		if err != nil {
+			log.Fatalf("init S3 bundle store: %v", err)
+		}
+		bundleSyncer = storage.NewSyncer(bundleStore, bundleDir)
+		if err := bundleSyncer.Pull(ctx); err != nil {
+			log.Printf("WARNING: S3 bundle pull failed: %v", err)
+		}
+
+		// Versions syncer (pull snapshots so version numbers are available)
+		s3Cfg.Prefix = envOr("KB_S3_VERSIONS_PREFIX", "versions/")
+		versionsStore, err := storage.NewSpacesStore(ctx, s3Cfg)
+		if err != nil {
+			log.Fatalf("init S3 versions store: %v", err)
+		}
+		versionsSyncer = storage.NewSyncer(versionsStore, b.VerDir())
+		if err := versionsSyncer.Pull(ctx); err != nil {
+			log.Printf("WARNING: S3 versions pull failed: %v", err)
 		}
 	}
 
@@ -90,10 +103,16 @@ func main() {
 		Index:  idx,
 		OnWrite: func(path string) {
 			log.Printf("concept written: %s", path)
-			if syncer != nil {
-				syncer.PushFile(path)
+			if bundleSyncer != nil {
+				bundleSyncer.PushFile(path)
 			}
 			regenViz()
+		},
+		OnSnapshot: func(snapshotRelPath string) {
+			log.Printf("snapshot written: %s", snapshotRelPath)
+			if versionsSyncer != nil {
+				versionsSyncer.PushFile(snapshotRelPath)
+			}
 		},
 	}
 
@@ -181,8 +200,11 @@ func main() {
 		signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 		<-sigCh
 		log.Println("shutting down...")
-		if syncer != nil {
-			syncer.Close()
+		if bundleSyncer != nil {
+			bundleSyncer.Close()
+		}
+		if versionsSyncer != nil {
+			versionsSyncer.Close()
 		}
 		httpServer.Shutdown(context.Background())
 	}()

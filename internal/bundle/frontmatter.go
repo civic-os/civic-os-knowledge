@@ -22,9 +22,10 @@ type ConceptMeta struct {
 
 // Concept represents a complete OKF concept file: frontmatter + body.
 type Concept struct {
-	Meta ConceptMeta
-	Body string
-	Path string // relative path within the bundle
+	Meta    ConceptMeta
+	Body    string
+	Path    string // relative path within the bundle
+	Version int    // derived from snapshot count, not stored in YAML
 }
 
 // ParseConcept parses a markdown file with YAML frontmatter into a Concept.

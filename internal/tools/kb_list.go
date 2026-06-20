@@ -28,6 +28,13 @@ func ListHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *ListIn
 			}, nil, nil
 		}
 
+		// Get versions from bundle
+		concepts, _ := deps.Bundle.List()
+		versions := make(map[string]int, len(concepts))
+		for _, c := range concepts {
+			versions[c.Path] = c.Version
+		}
+
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("%d concept(s)", len(results)))
 		if input.Type != "" {
@@ -36,7 +43,11 @@ func ListHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *ListIn
 		sb.WriteString(":\n\n")
 
 		for _, r := range results {
-			sb.WriteString(fmt.Sprintf("- `%s` — %s (%s)\n", r.Path, r.Meta.Title, r.Meta.Type))
+			v := versions[r.Path]
+			if v == 0 {
+				v = 1
+			}
+			sb.WriteString(fmt.Sprintf("- `%s` — %s (%s) [v%d]\n", r.Path, r.Meta.Title, r.Meta.Type, v))
 		}
 
 		return &mcp.CallToolResult{

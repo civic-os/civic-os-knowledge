@@ -26,10 +26,21 @@ func SearchHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Sear
 			}, nil, nil
 		}
 
+		// Get versions from bundle
+		concepts, _ := deps.Bundle.List()
+		versions := make(map[string]int, len(concepts))
+		for _, c := range concepts {
+			versions[c.Path] = c.Version
+		}
+
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("Found %d concept(s):\n\n", len(results)))
 		for _, r := range results {
-			sb.WriteString(fmt.Sprintf("- **%s** (`%s`)\n  Type: %s", r.Meta.Title, r.Path, r.Meta.Type))
+			v := versions[r.Path]
+			if v == 0 {
+				v = 1
+			}
+			sb.WriteString(fmt.Sprintf("- **%s** (`%s`) [v%d]\n  Type: %s", r.Meta.Title, r.Path, v, r.Meta.Type))
 			if r.Meta.Description != "" {
 				sb.WriteString(fmt.Sprintf("\n  %s", r.Meta.Description))
 			}

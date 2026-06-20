@@ -20,12 +20,12 @@ func testDeps(t *testing.T) *Deps {
 
 	idx := search.NewIndex()
 
-	var writtenPaths []string
 	return &Deps{
 		Bundle: b,
 		Index:  idx,
 		OnWrite: func(path string) {
-			writtenPaths = append(writtenPaths, path)
+		},
+		OnSnapshot: func(snapshotRelPath string) {
 		},
 	}
 }
@@ -51,6 +51,9 @@ func TestCreateAndReadTool(t *testing.T) {
 	if !strings.Contains(text, "Created") {
 		t.Errorf("unexpected result: %s", text)
 	}
+	if !strings.Contains(text, "version: 1") {
+		t.Errorf("expected version 1 in create result: %s", text)
+	}
 
 	// Read
 	readFn := ReadHandler(deps)
@@ -64,6 +67,9 @@ func TestCreateAndReadTool(t *testing.T) {
 	}
 	if !strings.Contains(text, "Test body.") {
 		t.Errorf("read result missing body: %s", text)
+	}
+	if !strings.Contains(text, "[version: 1]") {
+		t.Errorf("read result missing version prefix: %s", text)
 	}
 }
 
@@ -122,6 +128,9 @@ func TestSearchTool(t *testing.T) {
 	if !strings.Contains(text, "Alpha Client") {
 		t.Errorf("search missing Alpha Client: %s", text)
 	}
+	if !strings.Contains(text, "[v1]") {
+		t.Errorf("search result missing version: %s", text)
+	}
 }
 
 func TestSearchNoResults(t *testing.T) {
@@ -151,6 +160,9 @@ func TestListTool(t *testing.T) {
 	text := contentText(result)
 	if !strings.Contains(text, "2 concept(s)") {
 		t.Errorf("expected 2 concepts: %s", text)
+	}
+	if !strings.Contains(text, "[v1]") {
+		t.Errorf("list result missing version: %s", text)
 	}
 
 	// List by type
@@ -198,6 +210,9 @@ func TestUpdateTool(t *testing.T) {
 	if !strings.Contains(text, "Updated concept") {
 		t.Errorf("unexpected result: %s", text)
 	}
+	if !strings.Contains(text, "version: 2") {
+		t.Errorf("expected version 2 in update result: %s", text)
+	}
 
 	// Verify update
 	readFn := ReadHandler(deps)
@@ -210,6 +225,9 @@ func TestUpdateTool(t *testing.T) {
 	if !strings.Contains(text, "type: Note") {
 		t.Errorf("type not preserved: %s", text)
 	}
+	if !strings.Contains(text, "[version: 2]") {
+		t.Errorf("read should show version 2: %s", text)
+	}
 }
 
 func TestUpdateNotFound(t *testing.T) {
@@ -220,6 +238,61 @@ func TestUpdateNotFound(t *testing.T) {
 	result, _, _ := updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{Path: "missing.md", Title: "X"})
 	if result.GetError() == nil {
 		t.Error("expected error for missing file")
+	}
+}
+
+func TestUpdateConflictTool(t *testing.T) {
+	deps := testDeps(t)
+	ctx := context.Background()
+
+	createFn := CreateHandler(deps)
+	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
+		Path:  "a.md",
+		Type:  "Note",
+		Title: "V1",
+		Body:  "Body v1.",
+	})
+
+	updateFn := UpdateHandler(deps)
+
+	// Update with version 1 succeeds
+	result, _, _ := updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
+		Path:    "a.md",
+		Title:   "V2",
+		Body:    "Body v2.",
+		Version: 1,
+	})
+	if result.GetError() != nil {
+		t.Fatalf("first update should succeed: %v", result.GetError())
+	}
+
+	// Update with stale version 1 fails with conflict
+	result, _, _ = updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
+		Path:    "a.md",
+		Title:   "V2-stale",
+		Body:    "Body v2 stale.",
+		Version: 1,
+	})
+	if result.GetError() == nil {
+		t.Fatal("expected conflict error for stale version")
+	}
+	errText := result.GetError().Error()
+	if !strings.Contains(errText, "Conflict") {
+		t.Errorf("expected Conflict in error: %s", errText)
+	}
+
+	// Update without version (0) always succeeds
+	result, _, _ = updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
+		Path:  "a.md",
+		Title: "V3",
+		Body:  "Body v3.",
+	})
+	if result.GetError() != nil {
+		t.Fatalf("update without version should succeed: %v", result.GetError())
+	}
+	text := contentText(result)
+	if !strings.Contains(text, "version: 3") {
+		t.Errorf("expected version 3: %s", text)
 	}
 }
 
@@ -239,8 +312,11 @@ func TestHistoryTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := contentText(result)
-	if !strings.Contains(text, "1 version(s)") {
-		t.Errorf("expected 1 version: %s", text)
+	if !strings.Contains(text, "1 snapshot(s)") {
+		t.Errorf("expected 1 snapshot: %s", text)
+	}
+	if !strings.Contains(text, "version 1") {
+		t.Errorf("expected version 1 in history: %s", text)
 	}
 }
 
@@ -266,32 +342,18 @@ func TestDiffTool(t *testing.T) {
 	updateFn := UpdateHandler(deps)
 	updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{Path: "a.md", Title: "V2", Body: "Body v2."})
 
-	// Get timestamp
-	histFn := HistoryHandler(deps)
-	histResult, _, _ := histFn(ctx, &mcp.CallToolRequest{}, &HistoryInput{Path: "a.md"})
-	histText := contentText(histResult)
-
-	// Extract timestamp from "- 2026-06-19T..."
-	lines := strings.Split(histText, "\n")
-	var ts string
-	for _, line := range lines {
-		if strings.HasPrefix(line, "- ") {
-			ts = strings.TrimPrefix(line, "- ")
-			break
-		}
-	}
-	if ts == "" {
-		t.Fatal("could not extract timestamp from history")
-	}
-
+	// Diff against version 1
 	diffFn := DiffHandler(deps)
-	result, _, err := diffFn(ctx, &mcp.CallToolRequest{}, &DiffInput{Path: "a.md", Timestamp: ts})
+	result, _, err := diffFn(ctx, &mcp.CallToolRequest{}, &DiffInput{Path: "a.md", Version: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := contentText(result)
 	if !strings.Contains(text, "Diff of") {
 		t.Errorf("expected diff output: %s", text)
+	}
+	if !strings.Contains(text, "version 1") {
+		t.Errorf("expected version 1 in diff header: %s", text)
 	}
 }
 

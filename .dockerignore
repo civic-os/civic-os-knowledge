@@ -7,3 +7,4 @@ docker-compose.yaml
 .env*
 *.md
 !go.sum
+.mcp.json

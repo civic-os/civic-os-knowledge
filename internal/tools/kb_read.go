@@ -28,9 +28,10 @@ func ReadHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *ReadIn
 			return result, nil, nil
 		}
 
+		text := fmt.Sprintf("[version: %d]\n%s", c.Version, string(data))
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(data)},
+				&mcp.TextContent{Text: text},
 			},
 		}, nil, nil
 	}
@@ -39,7 +40,7 @@ func ReadHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *ReadIn
 func ReadTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "kb_read",
-		Description: "Read a knowledge concept by its file path. Returns the full markdown content including YAML frontmatter.",
+		Description: "Read a knowledge concept by its file path. Returns the full markdown content including YAML frontmatter, prefixed with [version: N]. Pass the version number to kb_update to enable optimistic concurrency control.",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint: true,
 		},
