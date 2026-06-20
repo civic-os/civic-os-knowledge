@@ -37,7 +37,7 @@ func NewBearerVerifier(ctx context.Context, cfg BearerConfig) (*BearerVerifier, 
 	}
 
 	verifier := provider.Verifier(&oidc.Config{
-		ClientID: cfg.ClientID,
+		SkipClientIDCheck: true,
 	})
 
 	wwwAuth := `Bearer`
