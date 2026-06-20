@@ -69,6 +69,8 @@ func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Upda
 func UpdateTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "kb_update",
-		Description: "Update an existing knowledge concept. Only specified fields are changed; others are preserved. A version snapshot is created before updating.",
+		Description: `Update an existing knowledge concept. Only specified fields are changed; others are preserved. A version snapshot is created before updating.
+
+Use updates for corrections, status changes, and metadata fixes. For substantial new knowledge, prefer creating a new linked concept rather than appending to an existing one — this keeps concepts focused and the knowledge graph navigable.`,
 	}
 }

@@ -125,6 +125,18 @@ cy.on('tap', 'node', e => {
       if (node.length) { cy.animate({ center: { eles: node }, zoom: 2 }, { duration: 300 }); node.emit('tap'); }
     });
   });
+  // Intercept markdown links to navigate within the graph
+  detail.querySelectorAll('.body a[href]').forEach(el => {
+    const href = el.getAttribute('href');
+    if (!href || href.startsWith('http://') || href.startsWith('https://')) return;
+    el.addEventListener('click', ev => {
+      ev.preventDefault();
+      // Normalize: strip leading / to match node IDs (e.g. "clients/neh.md")
+      const target = href.replace(/^\//, '');
+      const node = cy.getElementById(target);
+      if (node.length) { cy.animate({ center: { eles: node }, zoom: 2 }, { duration: 300 }); node.emit('tap'); }
+    });
+  });
 });
 cy.on('tap', e => { if (e.target === cy) detail.innerHTML = '<p class="empty">Click a node to view details</p>'; });
 

@@ -47,7 +47,9 @@ func SearchHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Sear
 func SearchTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "kb_search",
-		Description: "Search knowledge concepts by query text, type, and/or tags. Returns matching concepts ranked by relevance.",
+		Description: `Search knowledge concepts by query text, type, and/or tags. Returns matching concepts ranked by relevance.
+
+Search the knowledgebase before answering questions about Civic OS clients, instances, deployments, infrastructure, or business operations. Don't guess at facts the KB already captures.`,
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint: true,
 		},
