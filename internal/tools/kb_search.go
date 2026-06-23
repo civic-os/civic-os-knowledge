@@ -9,7 +9,7 @@ import (
 )
 
 type SearchInput struct {
-	Query string   `json:"query" jsonschema:"Search query text (case-insensitive substring match)"`
+	Query string   `json:"query" jsonschema:"Search query text. Multi-word queries match any word (OR logic) — concepts matching more words rank higher. Case-insensitive."`
 	Type  string   `json:"type,omitempty" jsonschema:"Filter by concept type (e.g. Client Profile)"`
 	Tags  []string `json:"tags,omitempty" jsonschema:"Filter by tags (returns concepts matching any tag)"`
 }

@@ -198,3 +198,74 @@ func TestTagFilterCaseInsensitive(t *testing.T) {
 		t.Errorf("got %d results, want 1", len(results))
 	}
 }
+
+func TestSearchMultiWordAcrossFields(t *testing.T) {
+	idx := NewIndex()
+	idx.BuildFromBundle(testConcepts())
+
+	// "mott" in title, "reservation" in description — should match mottpark
+	results := idx.Search("mott reservation", "", nil)
+	if len(results) == 0 {
+		t.Fatal("expected results for multi-word cross-field query")
+	}
+	if results[0].Path != "clients/mottpark.md" {
+		t.Errorf("first result = %q, want clients/mottpark.md", results[0].Path)
+	}
+}
+
+func TestSearchMultiWordPartialMatch(t *testing.T) {
+	idx := NewIndex()
+	idx.BuildFromBundle(testConcepts())
+
+	// "recreation" matches mottpark, "demolition" matches gclb — both should appear
+	results := idx.Search("recreation demolition", "", nil)
+	if len(results) < 2 {
+		t.Fatalf("got %d results, want at least 2", len(results))
+	}
+	paths := map[string]bool{}
+	for _, r := range results {
+		paths[r.Path] = true
+	}
+	if !paths["clients/mottpark.md"] {
+		t.Error("expected mottpark in results")
+	}
+	if !paths["clients/gclb.md"] {
+		t.Error("expected gclb in results")
+	}
+}
+
+func TestSearchMultiWordRanking(t *testing.T) {
+	idx := NewIndex()
+	idx.BuildFromBundle(testConcepts())
+
+	// "property" and "demolition" both appear in gclb — should rank first
+	results := idx.Search("property demolition", "", nil)
+	if len(results) == 0 {
+		t.Fatal("expected results")
+	}
+	if results[0].Path != "clients/gclb.md" {
+		t.Errorf("first result = %q, want clients/gclb.md", results[0].Path)
+	}
+	// Concepts matching only one word should rank lower
+	if len(results) > 1 && results[1].Score >= results[0].Score {
+		t.Errorf("two-word match (%d) should score higher than one-word match (%d)",
+			results[0].Score, results[1].Score)
+	}
+}
+
+func TestSearchWordOrderIrrelevant(t *testing.T) {
+	idx := NewIndex()
+	idx.BuildFromBundle(testConcepts())
+
+	r1 := idx.Search("mott park", "", nil)
+	r2 := idx.Search("park mott", "", nil)
+
+	if len(r1) != len(r2) {
+		t.Fatalf("different result counts: %d vs %d", len(r1), len(r2))
+	}
+	for i := range r1 {
+		if r1[i].Path != r2[i].Path || r1[i].Score != r2[i].Score {
+			t.Errorf("result[%d] differs: %v vs %v", i, r1[i], r2[i])
+		}
+	}
+}

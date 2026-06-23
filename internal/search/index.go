@@ -73,14 +73,25 @@ func (idx *Index) Remove(path string) {
 	delete(idx.entries, path)
 }
 
+// splitQuery lowercases the query and splits it into words.
+// Returns nil for empty or whitespace-only input.
+func splitQuery(query string) []string {
+	words := strings.Fields(strings.ToLower(query))
+	if len(words) == 0 {
+		return nil
+	}
+	return words
+}
+
 // Search finds concepts matching the query with optional type and tag filters.
 // Empty query returns all entries (filtered by type/tags if provided).
-// Scoring: title match = 3, description match = 2, body match = 1.
+// Multi-word queries use OR logic: each word is matched independently and
+// scores are summed. Per-word weights: title=3, description=2, body=1.
 func (idx *Index) Search(query, typeFilter string, tagFilters []string) []Result {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()
 
-	queryLow := strings.ToLower(query)
+	words := splitQuery(query)
 	var results []Result
 
 	for _, e := range idx.entries {
@@ -95,20 +106,22 @@ func (idx *Index) Search(query, typeFilter string, tagFilters []string) []Result
 		}
 
 		// Score query match
-		if query == "" {
+		if len(words) == 0 {
 			results = append(results, Result{Path: e.Path, Meta: e.Meta, Score: 1})
 			continue
 		}
 
 		score := 0
-		if strings.Contains(e.titleLow, queryLow) {
-			score += 3
-		}
-		if strings.Contains(e.descLow, queryLow) {
-			score += 2
-		}
-		if strings.Contains(e.bodyLow, queryLow) {
-			score += 1
+		for _, w := range words {
+			if strings.Contains(e.titleLow, w) {
+				score += 3
+			}
+			if strings.Contains(e.descLow, w) {
+				score += 2
+			}
+			if strings.Contains(e.bodyLow, w) {
+				score += 1
+			}
 		}
 
 		if score > 0 {
