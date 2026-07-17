@@ -52,6 +52,7 @@ func Generate(concepts []*bundle.Concept) (string, error) {
 	}
 
 	data := newGraphData()
+	edgeSeen := make(map[string]bool)
 
 	for _, c := range concepts {
 		data.Nodes = append(data.Nodes, graphNode{
@@ -69,7 +70,9 @@ func Generate(concepts []*bundle.Concept) (string, error) {
 		matches := crossLinkRe.FindAllStringSubmatch(c.Body, -1)
 		for _, m := range matches {
 			target := normalizePath(c.Path, m[1])
-			if pathSet[target] && target != c.Path {
+			edgeKey := c.Path + "\x00" + target
+			if pathSet[target] && target != c.Path && !edgeSeen[edgeKey] {
+				edgeSeen[edgeKey] = true
 				data.Edges = append(data.Edges, graphEdge{
 					Source: c.Path,
 					Target: target,

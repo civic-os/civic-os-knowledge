@@ -92,12 +92,13 @@ const cy = cytoscape({
   container: document.getElementById('cy'),
   elements: elements,
   style: [
-    { selector: 'node', style: { 'label': 'data(label)', 'font-size': '11px', 'color': '#c9d1d9', 'text-valign': 'bottom', 'text-margin-y': 6, 'background-color': el => typeColor(el.data('type')), 'width': 24, 'height': 24, 'border-width': 0 }},
+    { selector: 'node', style: { 'label': '', 'font-size': '11px', 'color': '#c9d1d9', 'text-valign': 'bottom', 'text-margin-y': 6, 'background-color': el => typeColor(el.data('type')), 'width': 24, 'height': 24, 'border-width': 0 }},
+    { selector: 'node.show-label', style: { 'label': 'data(label)' }},
     { selector: 'edge', style: { 'width': 1, 'line-color': '#30363d', 'target-arrow-color': '#30363d', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'arrow-scale': 0.6 }},
     { selector: '.highlighted', style: { 'border-width': 3, 'border-color': '#58a6ff', 'width': 32, 'height': 32 }},
     { selector: '.faded', style: { 'opacity': 0.15 }},
   ],
-  layout: { name: 'cose', animate: false, nodeRepulsion: 8000, idealEdgeLength: 100 },
+  layout: { name: 'cose', animate: false, nodeRepulsion: 50000, idealEdgeLength: 200, nodeOverlap: 40, gravity: 0.3, padding: 40 },
   minZoom: 0.2, maxZoom: 5
 });
 
@@ -139,7 +140,23 @@ cy.on('tap', 'node', e => {
     });
   });
 });
-cy.on('tap', e => { if (e.target === cy) detail.innerHTML = '<p class="empty">Click a node to view details</p>'; });
+cy.on('tap', e => {
+  if (e.target === cy) {
+    detail.innerHTML = '<p class="empty">Click a node to view details</p>';
+    cy.nodes().removeClass('show-label');
+  }
+});
+
+// Show labels on hover
+cy.on('mouseover', 'node', e => { e.target.addClass('show-label'); });
+cy.on('mouseout', 'node', e => { e.target.removeClass('show-label'); });
+
+// Show neighbor labels on tap
+cy.on('tap', 'node', e => {
+  cy.nodes().removeClass('show-label');
+  e.target.addClass('show-label');
+  e.target.neighborhood('node').addClass('show-label');
+});
 
 // Resizable divider
 const divider = document.getElementById('divider');

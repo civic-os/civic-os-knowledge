@@ -106,6 +106,31 @@ func TestGenerateNoSelfLinks(t *testing.T) {
 	}
 }
 
+func TestGenerateDuplicateEdges(t *testing.T) {
+	concepts := []*bundle.Concept{
+		{
+			Meta: bundle.ConceptMeta{Type: "Note", Title: "A"},
+			Body: "Links to [B](b.md) and again [B](b.md).",
+			Path: "a.md",
+		},
+		{
+			Meta: bundle.ConceptMeta{Type: "Note", Title: "B"},
+			Body: "No links.",
+			Path: "b.md",
+		},
+	}
+
+	html, err := Generate(concepts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count := strings.Count(html, `"source":"a.md","target":"b.md"`)
+	if count != 1 {
+		t.Errorf("expected 1 edge from a.md to b.md, got %d", count)
+	}
+}
+
 func TestNormalizePath(t *testing.T) {
 	tests := []struct {
 		source, target, want string

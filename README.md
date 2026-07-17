@@ -21,7 +21,7 @@ The live knowledge bundle (OKF concept files) lives at runtime in a container vo
 
 ## Status
 
-**Early development.** Architecture decisions are resolved; implementation is next. See `docs/ARCHITECTURE.md`.
+**Deployed and production-ready.** The MCP server runs on DigitalOcean Kubernetes, providing 7 knowledge tools (read, search, list, create, update, history, diff) over Streamable HTTP with OAuth 2.1 Bearer authentication. A built-in interactive knowledge graph viewer (`viz.html`) is served via OIDC browser flow. See `docs/ARCHITECTURE.md` for details.
 
 ## License
 
