@@ -98,8 +98,6 @@ All architectural decisions are resolved. See `docs/ARCHITECTURE.md` for details
 - In-memory search index, on-write viz.html regeneration and S3 sync
 - OAuth 2.1 Bearer for MCP, OIDC code flow for viz.html viewer
 
-See `docs/OKF_RESEARCH.md` for the research that led to OKF files as the backing store.
-
 ## OKF Concept Format
 
 Every concept file follows this structure:
@@ -130,6 +128,5 @@ See [deployment runbook](/instances/mottpark-deployment.md) for ops details.
 
 ## Related Documentation
 
-- `docs/OKF_RESEARCH.md` — Full research on OKF, wiki alternatives, backing store analysis
 - `docs/ARCHITECTURE.md` — Service architecture decisions (resolved)
 - OKF v0.1 Spec: https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md

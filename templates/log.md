@@ -2,7 +2,7 @@
 
 ## 2026-06-19
 * **Initialization**: Created knowledgebase structure with 10 concept types
-* **Creation**: Added initial client profiles (FFSC, Mott Park, NEH, ICGF, CFI)
+* **Creation**: Added initial client profiles
 * **Creation**: Added instance deployment docs from deployments repo
 
 ## Template

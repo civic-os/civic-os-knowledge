@@ -22,7 +22,7 @@ The civic-os-knowledge service consists of three components:
                                │ OAuth 2.1 (Keycloak)
                   ┌────────────▼──────────────┐
                   │    DO K8s Cluster Ingress  │
-                  │    kb.civic-os.org         │
+                  │    (public hostname)       │
                   ├───────────┬───────────────┤
                   │  /mcp     │  /            │
                   │  ↓        │  ↓            │
@@ -48,7 +48,7 @@ The civic-os-knowledge service consists of three components:
 
 ### 1. Hosting: DigitalOcean Kubernetes Cluster
 
-The MCP server runs as a single-replica Deployment in the existing DO K8s cluster (same cluster hosting NEH and ICGF). The central-os VPS is mentally deprecated and not suitable for new services.
+The MCP server runs as a single-replica Deployment in the existing DO K8s cluster.
 
 Single replica is sufficient: this is a single-writer knowledgebase for one user (accessed via Claude surfaces). No concurrent-write coordination needed. K8s handles restarts (~5s) if the pod crashes. Brief downtime during rolling updates is acceptable.
 
@@ -101,11 +101,11 @@ All Claude surfaces connect via HTTPS. No stdio/HTTP split. Rationale: one trans
 
 ### Auth: OAuth 2.1 via Existing Keycloak
 
-MCP server validates JWTs against `auth.civic-os.org`. Create a `civic-os-kb` client in the Keycloak realm. Same pattern as all other Civic OS services.
+MCP server validates JWTs against the Keycloak JWKS endpoint. Auth client setup follows the same pattern as other Civic OS services.
 
 ### Backing Store: OKF Files (Not Git, Not Database, Not Wiki)
 
-Markdown files with YAML frontmatter on the filesystem. See `docs/OKF_RESEARCH.md` for the full analysis of alternatives.
+Markdown files with YAML frontmatter on the filesystem.
 
 ### Versioning: Copy-on-Write File Snapshots
 
@@ -129,7 +129,7 @@ The live concept files live in the pod's local filesystem at runtime, pulled fro
 A lightweight HTTP server (same Go process as the MCP server) serves viz.html and handles Keycloak authentication. This is separate from the MCP transport — the MCP server handles Claude surfaces via OAuth 2.1, while the HTTP server handles human users via browser-based OIDC.
 
 **Auth flow:**
-1. User visits `kb.civic-os.org` → redirected to Keycloak login
+1. User visits the service URL → redirected to Keycloak login
 2. Keycloak issues JWT with realm roles → redirect back with token
 3. HTTP server validates JWT and checks roles before serving viz.html
 4. Session maintained via httpOnly cookie (standard OIDC code flow)
@@ -138,9 +138,9 @@ A lightweight HTTP server (same Go process as the MCP server) serves viz.html an
 
 ```
 KB_VIZ_ROLES=kb-viewer,kb-admin    # comma-separated Keycloak realm roles
-KB_KEYCLOAK_URL=https://auth.civic-os.org
-KB_KEYCLOAK_REALM=central-os
-KB_KEYCLOAK_CLIENT_ID=civic-os-kb
+KB_KEYCLOAK_URL=https://<keycloak-host>
+KB_KEYCLOAK_REALM=<realm>
+KB_KEYCLOAK_CLIENT_ID=<client-id>
 ```
 
 Any user with at least one of the roles listed in `KB_VIZ_ROLES` can access viz.html. Roles are managed in Keycloak — no application-level user management.

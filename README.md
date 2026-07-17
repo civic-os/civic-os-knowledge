@@ -15,7 +15,6 @@ The live knowledge bundle (OKF concept files) lives at runtime in a container vo
 
 ## Documentation
 
-- [OKF Research](docs/OKF_RESEARCH.md) — Full research on format, alternatives, and design rationale
 - [Architecture](docs/ARCHITECTURE.md) — Service architecture decisions
 - [CLAUDE.md](CLAUDE.md) — AI assistant context for working in this repo
 
