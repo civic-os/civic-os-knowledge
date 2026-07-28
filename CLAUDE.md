@@ -110,6 +110,7 @@ description: Clubhouse reservation system with payment tracking.
 resource: https://mottpark.civic-os.org
 tags: [customer, payments, production]
 timestamp: 2026-06-19
+status: draft                 # Optional — draft | stable | deprecated (stable is default, omitted from YAML)
 ---
 
 # Markdown body

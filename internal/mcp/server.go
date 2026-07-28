@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the server version. CI validates this matches the git tag.
-const Version = "0.5.0"
+const Version = "0.6.0"
 
 // NewMCPServer creates a configured MCP server with all knowledge base tools registered.
 func NewMCPServer(deps *tools.Deps) *mcp.Server {

@@ -19,7 +19,7 @@ type BearerConfig struct {
 
 // BearerVerifier validates JWT Bearer tokens against a Keycloak JWKS endpoint.
 type BearerVerifier struct {
-	verifier       *oidc.IDTokenVerifier
+	verifier        *oidc.IDTokenVerifier
 	wwwAuthenticate string // precomputed WWW-Authenticate header value
 	wwwAuthError    string // precomputed WWW-Authenticate with error
 }

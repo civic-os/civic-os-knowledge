@@ -357,6 +357,135 @@ func TestDiffTool(t *testing.T) {
 	}
 }
 
+func TestCreateWithStatus(t *testing.T) {
+	deps := testDeps(t)
+	ctx := context.Background()
+
+	createFn := CreateHandler(deps)
+	result, _, err := createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
+		Path:   "notes/draft.md",
+		Type:   "Note",
+		Title:  "Draft Note",
+		Status: "draft",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.GetError() != nil {
+		t.Fatalf("create failed: %v", result.GetError())
+	}
+
+	// Read back and verify status is in frontmatter
+	readFn := ReadHandler(deps)
+	result, _, _ = readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "notes/draft.md"})
+	text := contentText(result)
+	if !strings.Contains(text, "status: draft") {
+		t.Errorf("expected status: draft in output: %s", text)
+	}
+}
+
+func TestCreateDefaultStatus(t *testing.T) {
+	deps := testDeps(t)
+	ctx := context.Background()
+
+	createFn := CreateHandler(deps)
+	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
+		Path:  "notes/stable.md",
+		Type:  "Note",
+		Title: "Stable Note",
+	})
+
+	// Read back and verify no status line (stable is omitted)
+	readFn := ReadHandler(deps)
+	result, _, _ := readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "notes/stable.md"})
+	text := contentText(result)
+	if strings.Contains(text, "status:") {
+		t.Errorf("stable status should be omitted from YAML: %s", text)
+	}
+}
+
+func TestCreateInvalidStatus(t *testing.T) {
+	deps := testDeps(t)
+	ctx := context.Background()
+
+	createFn := CreateHandler(deps)
+	result, _, _ := createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
+		Path:   "notes/bad.md",
+		Type:   "Note",
+		Title:  "Bad Status",
+		Status: "invalid",
+	})
+	if result.GetError() == nil {
+		t.Error("expected error for invalid status")
+	}
+	errText := result.GetError().Error()
+	if !strings.Contains(errText, "invalid status") {
+		t.Errorf("unexpected error: %s", errText)
+	}
+}
+
+func TestUpdateStatus(t *testing.T) {
+	deps := testDeps(t)
+	ctx := context.Background()
+
+	createFn := CreateHandler(deps)
+	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
+		Path:  "notes/toretire.md",
+		Type:  "Note",
+		Title: "Will Deprecate",
+	})
+
+	updateFn := UpdateHandler(deps)
+	result, _, err := updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
+		Path:   "notes/toretire.md",
+		Status: "deprecated",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.GetError() != nil {
+		t.Fatalf("update failed: %v", result.GetError())
+	}
+
+	// Read back
+	readFn := ReadHandler(deps)
+	result, _, _ = readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "notes/toretire.md"})
+	text := contentText(result)
+	if !strings.Contains(text, "status: deprecated") {
+		t.Errorf("expected status: deprecated in output: %s", text)
+	}
+}
+
+func TestUpdatePreservesStatus(t *testing.T) {
+	deps := testDeps(t)
+	ctx := context.Background()
+
+	createFn := CreateHandler(deps)
+	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
+		Path:   "notes/keep.md",
+		Type:   "Note",
+		Title:  "Draft Concept",
+		Status: "draft",
+	})
+
+	// Update title without changing status
+	updateFn := UpdateHandler(deps)
+	updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
+		Path:  "notes/keep.md",
+		Title: "Updated Draft",
+	})
+
+	readFn := ReadHandler(deps)
+	result, _, _ := readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "notes/keep.md"})
+	text := contentText(result)
+	if !strings.Contains(text, "status: draft") {
+		t.Errorf("status should be preserved after title-only update: %s", text)
+	}
+	if !strings.Contains(text, "title: Updated Draft") {
+		t.Errorf("title should be updated: %s", text)
+	}
+}
+
 func contentText(r *mcp.CallToolResult) string {
 	if r == nil || len(r.Content) == 0 {
 		return ""

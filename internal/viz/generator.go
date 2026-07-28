@@ -24,6 +24,7 @@ type graphNode struct {
 	Tags        []string `json:"tags,omitempty"`
 	Timestamp   string   `json:"timestamp,omitempty"`
 	Body        string   `json:"body,omitempty"`
+	Status      string   `json:"status,omitempty"`
 }
 
 type graphEdge struct {
@@ -64,6 +65,7 @@ func Generate(concepts []*bundle.Concept) (string, error) {
 			Tags:        c.Meta.Tags,
 			Timestamp:   c.Meta.Timestamp,
 			Body:        c.Body,
+			Status:      c.Meta.Status,
 		})
 
 		// Extract cross-links from body

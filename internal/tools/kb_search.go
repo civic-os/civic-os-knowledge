@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/civic-os/civic-os-knowledge/internal/bundle"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -40,7 +41,11 @@ func SearchHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Sear
 			if v == 0 {
 				v = 1
 			}
-			sb.WriteString(fmt.Sprintf("- **%s** (`%s`) [v%d]\n  Type: %s", r.Meta.Title, r.Path, v, r.Meta.Type))
+			typeLine := r.Meta.Type
+			if r.Meta.Status != "" && r.Meta.Status != bundle.StatusStable {
+				typeLine += " | Status: " + r.Meta.Status
+			}
+			sb.WriteString(fmt.Sprintf("- **%s** (`%s`) [v%d]\n  Type: %s", r.Meta.Title, r.Path, v, typeLine))
 			if r.Meta.Description != "" {
 				sb.WriteString(fmt.Sprintf("\n  %s", r.Meta.Description))
 			}
@@ -57,7 +62,7 @@ func SearchHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Sear
 
 func SearchTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "kb_search",
+		Name: "kb_search",
 		Description: `Search knowledge concepts by query text, type, and/or tags. Returns matching concepts ranked by relevance.
 
 Search the knowledgebase before answering questions about Civic OS clients, instances, deployments, infrastructure, or business operations. Don't guess at facts the KB already captures.`,

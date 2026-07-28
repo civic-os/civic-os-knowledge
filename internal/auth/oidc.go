@@ -17,8 +17,8 @@ import (
 
 // OIDCConfig configures the browser-based OIDC authentication flow.
 type OIDCConfig struct {
-	IssuerURL   string   // Keycloak realm URL (external, for browser redirects)
-	InternalURL string   // Optional: internal Keycloak base URL for Docker environments
+	IssuerURL    string   // Keycloak realm URL (external, for browser redirects)
+	InternalURL  string   // Optional: internal Keycloak base URL for Docker environments
 	ClientID     string   // OIDC client ID
 	ClientSecret string   // OIDC client secret
 	ExternalURL  string   // Public URL of this service (for redirect URI)
@@ -28,13 +28,13 @@ type OIDCConfig struct {
 
 // OIDCAuth handles browser-based OIDC authentication with Keycloak.
 type OIDCAuth struct {
-	oauth2Config *oauth2.Config
-	verifier     *oidc.IDTokenVerifier
-	store        sessions.Store
-	allowedRoles map[string]bool
-	httpClient   *http.Client // custom HTTP client for proxied environments
-	endSessionURL string      // Keycloak end_session_endpoint
-	externalURL   string      // this service's public URL (for post-logout redirect)
+	oauth2Config  *oauth2.Config
+	verifier      *oidc.IDTokenVerifier
+	store         sessions.Store
+	allowedRoles  map[string]bool
+	httpClient    *http.Client // custom HTTP client for proxied environments
+	endSessionURL string       // Keycloak end_session_endpoint
+	externalURL   string       // this service's public URL (for post-logout redirect)
 }
 
 // NewOIDCAuth initializes the OIDC auth handler.
@@ -219,8 +219,8 @@ func randomState() string {
 // ProtectedResourceMetadata returns the OAuth 2.0 Protected Resource Metadata JSON.
 func ProtectedResourceMetadata(issuerURL, resourceURL string) ([]byte, error) {
 	metadata := map[string]interface{}{
-		"resource":                resourceURL,
-		"authorization_servers":  []string{issuerURL},
+		"resource":                 resourceURL,
+		"authorization_servers":    []string{issuerURL},
 		"bearer_methods_supported": []string{"header"},
 	}
 	return json.Marshal(metadata)

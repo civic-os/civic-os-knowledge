@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/civic-os/civic-os-knowledge/internal/bundle"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -47,7 +48,11 @@ func ListHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *ListIn
 			if v == 0 {
 				v = 1
 			}
-			sb.WriteString(fmt.Sprintf("- `%s` — %s (%s) [v%d]\n", r.Path, r.Meta.Title, r.Meta.Type, v))
+			line := fmt.Sprintf("- `%s` — %s (%s) [v%d]", r.Path, r.Meta.Title, r.Meta.Type, v)
+			if r.Meta.Status != "" && r.Meta.Status != bundle.StatusStable {
+				line += " [" + r.Meta.Status + "]"
+			}
+			sb.WriteString(line + "\n")
 		}
 
 		return &mcp.CallToolResult{

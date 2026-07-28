@@ -37,7 +37,7 @@ type SpacesConfig struct {
 	Prefix    string // e.g. "knowledge/"
 	AccessKey string
 	SecretKey string
-	PathStyle bool   // true for MinIO, false for DO Spaces
+	PathStyle bool // true for MinIO, false for DO Spaces
 }
 
 // NewSpacesStore creates a SpacesStore from config.
@@ -112,9 +112,9 @@ func (s *SpacesStore) PutObject(ctx context.Context, key string, data []byte) er
 
 // Syncer handles pulling from and pushing to S3.
 type Syncer struct {
-	store   ObjectStore
+	store    ObjectStore
 	localDir string
-	pushCh  chan pushRequest
+	pushCh   chan pushRequest
 }
 
 type pushRequest struct {

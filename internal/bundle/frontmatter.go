@@ -10,6 +10,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Status constants for OKF concept lifecycle.
+const (
+	StatusDraft      = "draft"
+	StatusStable     = "stable"
+	StatusDeprecated = "deprecated"
+)
+
+// ValidStatus returns true if s is a valid OKF status value.
+// Empty string is valid (treated as stable at the application layer).
+func ValidStatus(s string) bool {
+	switch s {
+	case "", StatusDraft, StatusStable, StatusDeprecated:
+		return true
+	}
+	return false
+}
+
 // ConceptMeta represents the YAML frontmatter of an OKF concept file.
 type ConceptMeta struct {
 	Type        string   `yaml:"type"`
@@ -18,6 +35,7 @@ type ConceptMeta struct {
 	Resource    string   `yaml:"resource,omitempty"`
 	Tags        []string `yaml:"tags,omitempty,flow"`
 	Timestamp   string   `yaml:"timestamp,omitempty"`
+	Status      string   `yaml:"status,omitempty"`
 }
 
 // Concept represents a complete OKF concept file: frontmatter + body.

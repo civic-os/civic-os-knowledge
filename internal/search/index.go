@@ -154,13 +154,28 @@ func matchesAnyTag(conceptTags, filterTags []string) bool {
 func sortResults(results []Result) {
 	for i := 1; i < len(results); i++ {
 		for j := i; j > 0; j-- {
-			if results[j].Score > results[j-1].Score {
-				results[j], results[j-1] = results[j-1], results[j]
-			} else if results[j].Score == results[j-1].Score && results[j].Path < results[j-1].Path {
+			if lessResult(results[j], results[j-1]) {
 				results[j], results[j-1] = results[j-1], results[j]
 			} else {
 				break
 			}
 		}
 	}
+}
+
+// lessResult returns true if a should sort before b.
+// Primary: non-deprecated before deprecated. Then score desc, then path asc.
+func lessResult(a, b Result) bool {
+	ad, bd := isDeprecated(a), isDeprecated(b)
+	if ad != bd {
+		return !ad // non-deprecated sorts first
+	}
+	if a.Score != b.Score {
+		return a.Score > b.Score
+	}
+	return a.Path < b.Path
+}
+
+func isDeprecated(r Result) bool {
+	return r.Meta.Status == "deprecated"
 }

@@ -66,6 +66,62 @@ Body content.
 	}
 }
 
+func TestParseConceptWithStatus(t *testing.T) {
+	data := []byte(`---
+type: Decision Record
+title: Deprecate Old API
+status: deprecated
+---
+
+Replaced by v2 API.
+`)
+	c, err := ParseConcept(data, "decisions/old-api.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Meta.Status != "deprecated" {
+		t.Errorf("status = %q, want %q", c.Meta.Status, "deprecated")
+	}
+}
+
+func TestParseConceptWithoutStatus(t *testing.T) {
+	data := []byte(`---
+type: Note
+title: Simple Note
+---
+
+No status field.
+`)
+	c, err := ParseConcept(data, "notes/simple.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Meta.Status != "" {
+		t.Errorf("status = %q, want empty string", c.Meta.Status)
+	}
+}
+
+func TestValidStatus(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"draft", true},
+		{"stable", true},
+		{"deprecated", true},
+		{"", true},
+		{"invalid", false},
+		{"DRAFT", false},
+		{"Draft", false},
+	}
+	for _, tt := range tests {
+		got := ValidStatus(tt.input)
+		if got != tt.want {
+			t.Errorf("ValidStatus(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestParseConceptMinimal(t *testing.T) {
 	data := []byte(`---
 type: Note

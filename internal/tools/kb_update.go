@@ -17,6 +17,7 @@ type UpdateInput struct {
 	Resource    string   `json:"resource,omitempty" jsonschema:"Updated resource URL"`
 	Tags        []string `json:"tags,omitempty" jsonschema:"Updated tags"`
 	Body        string   `json:"body,omitempty" jsonschema:"Updated markdown body content"`
+	Status      string   `json:"status,omitempty" jsonschema:"Lifecycle status: draft, stable, or deprecated"`
 	Version     int      `json:"version,omitempty" jsonschema:"Expected version from kb_read. If provided, update is rejected when another session has written since your read."`
 }
 
@@ -27,6 +28,13 @@ func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Upda
 		if err != nil {
 			result := &mcp.CallToolResult{}
 			result.SetError(fmt.Errorf("concept not found: %w", err))
+			return result, nil, nil
+		}
+
+		// Validate status if provided
+		if input.Status != "" && !bundle.ValidStatus(input.Status) {
+			result := &mcp.CallToolResult{}
+			result.SetError(fmt.Errorf("invalid status %q: must be draft, stable, or deprecated", input.Status))
 			return result, nil, nil
 		}
 
@@ -48,6 +56,9 @@ func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Upda
 		}
 		if input.Body != "" {
 			existing.Body = input.Body
+		}
+		if input.Status != "" {
+			existing.Meta.Status = input.Status
 		}
 		existing.Meta.Timestamp = bundle.NowTimestamp()
 
@@ -82,11 +93,13 @@ func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Upda
 
 func UpdateTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "kb_update",
+		Name: "kb_update",
 		Description: `Update an existing knowledge concept. Only specified fields are changed; others are preserved. A version snapshot is created before updating.
 
 Use updates for corrections, status changes, and metadata fixes. For substantial new knowledge, prefer creating a new linked concept rather than appending to an existing one — this keeps concepts focused and the knowledge graph navigable.
 
-Pass the version number from kb_read to enable optimistic concurrency control. If another session updated the concept since your read, the update is rejected with a conflict error — re-read and retry.`,
+Pass the version number from kb_read to enable optimistic concurrency control. If another session updated the concept since your read, the update is rejected with a conflict error — re-read and retry.
+
+Status lifecycle: set status to "deprecated" to mark a concept as superseded without deleting it. Use "draft" for work-in-progress.`,
 	}
 }

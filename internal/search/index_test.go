@@ -253,6 +253,41 @@ func TestSearchMultiWordRanking(t *testing.T) {
 	}
 }
 
+func TestSearchDeprecatedLast(t *testing.T) {
+	idx := NewIndex()
+	idx.BuildFromBundle([]*bundle.Concept{
+		{
+			Meta: bundle.ConceptMeta{
+				Type:   "Note",
+				Title:  "Active Note",
+				Status: "",
+			},
+			Body: "common keyword here",
+			Path: "notes/active.md",
+		},
+		{
+			Meta: bundle.ConceptMeta{
+				Type:   "Note",
+				Title:  "Deprecated Note",
+				Status: "deprecated",
+			},
+			Body: "common keyword here",
+			Path: "notes/deprecated.md",
+		},
+	})
+
+	results := idx.Search("keyword", "", nil)
+	if len(results) != 2 {
+		t.Fatalf("got %d results, want 2", len(results))
+	}
+	if results[0].Path != "notes/active.md" {
+		t.Errorf("first result = %q, want notes/active.md (non-deprecated)", results[0].Path)
+	}
+	if results[1].Path != "notes/deprecated.md" {
+		t.Errorf("second result = %q, want notes/deprecated.md (deprecated)", results[1].Path)
+	}
+}
+
 func TestSearchWordOrderIrrelevant(t *testing.T) {
 	idx := NewIndex()
 	idx.BuildFromBundle(testConcepts())

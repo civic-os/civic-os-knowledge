@@ -9,7 +9,7 @@ import (
 type Deps struct {
 	Bundle     *bundle.Bundle
 	Index      *search.Index
-	OnWrite    func(path string)         // called after create/update; noop if nil
+	OnWrite    func(path string)            // called after create/update; noop if nil
 	OnSnapshot func(snapshotRelPath string) // called after snapshot creation; noop if nil
 }
 
