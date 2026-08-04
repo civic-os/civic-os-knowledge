@@ -180,6 +180,21 @@
     }
   ],
 
+  "components": {
+    "org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy": [
+      {
+        "name": "Trusted Hosts",
+        "providerId": "trusted-hosts",
+        "subType": "anonymous",
+        "config": {
+          "host-sending-registration-request-must-match": ["true"],
+          "trusted-hosts": ["localhost", "127.0.0.1"],
+          "client-uris-must-match": ["true"]
+        }
+      }
+    ]
+  },
+
   "browserFlow": "browser",
   "directGrantFlow": "direct grant",
   "resetCredentialsFlow": "reset credentials",

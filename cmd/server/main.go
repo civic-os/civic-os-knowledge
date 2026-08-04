@@ -146,11 +146,20 @@ func main() {
 		if keycloakInternalURL != "" {
 			internalIssuerURL = strings.TrimRight(keycloakInternalURL, "/") + "/realms/" + keycloakRealm
 		}
-		metadata, _ := auth.ProtectedResourceMetadata(issuerURL, externalURL)
-		mux.HandleFunc("/.well-known/oauth-protected-resource", func(w http.ResponseWriter, r *http.Request) {
+		metadata, _ := auth.ProtectedResourceMetadata(issuerURL, strings.TrimRight(externalURL, "/")+"/mcp")
+		serveMetadata := func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 			w.Write(metadata)
-		})
+		}
+		mux.HandleFunc("/.well-known/oauth-protected-resource", serveMetadata)
+		mux.HandleFunc("/.well-known/oauth-protected-resource/mcp", serveMetadata)
 
 		// Bearer auth for MCP endpoint
 		ctx := context.Background()
