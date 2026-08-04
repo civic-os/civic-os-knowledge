@@ -121,8 +121,9 @@ func main() {
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
-			Stateless:    true,
-			JSONResponse: true,
+			Stateless:                    true,
+			JSONResponse:                 true,
+			PropagateRequestCancellation: true,
 		},
 	)
 

@@ -81,7 +81,7 @@ Implementation: array of `{path, frontmatter, bodyText}` objects. Filter by `typ
 
 ### 6. Implementation Language: Go
 
-Single static binary, ~10-20MB container image (distroless), no runtime dependencies. The MCP Go SDK (Tier 2, v1.6.1, co-maintained by Google) supports Streamable HTTP with stateless mode. Goroutines naturally handle the MCP server, HTTP server, and S3 sync concurrently.
+Single static binary, ~10-20MB container image (distroless), no runtime dependencies. The MCP Go SDK (Tier 1, v1.7.0, protocol 2026-07-28) supports Streamable HTTP with stateless mode. Goroutines naturally handle the MCP server, HTTP server, and S3 sync concurrently.
 
 **Key libraries:**
 - `github.com/modelcontextprotocol/go-sdk/mcp` — MCP server + Streamable HTTP transport
