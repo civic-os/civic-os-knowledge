@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -211,5 +212,34 @@ func TestDiffIsLineAccurate(t *testing.T) {
 	}
 	if !strings.Contains(diff, "notes/a.md@v1") {
 		t.Errorf("diff header missing version label:\n%s", diff)
+	}
+}
+
+// TestDiffHunkHeaders guards the workaround for go-udiff's hunk start lines,
+// which drift when one hunk joins nearby edits.
+func TestDiffHunkHeaders(t *testing.T) {
+	var lines []string
+	for i := 1; i <= 40; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	before := strings.Join(lines, "\n") + "\n\n"
+	lines[1] = "line 2 changed"
+	lines[5] = "line 6 changed" // joined into the first hunk
+	lines = append(lines[:20], lines[23:]...)
+	after := strings.Join(lines, "\n") + "\n"
+
+	diff, err := unifiedDiff("old", "new", before, after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var headers []string
+	for _, l := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(l, "@@") {
+			headers = append(headers, l)
+		}
+	}
+	want := []string{"@@ -1,9 +1,9 @@", "@@ -18,9 +18,6 @@", "@@ -38,4 +35,3 @@"}
+	if strings.Join(headers, "|") != strings.Join(want, "|") {
+		t.Errorf("headers = %q, want %q\n%s", headers, want, diff)
 	}
 }

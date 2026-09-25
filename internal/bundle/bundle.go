@@ -384,12 +384,32 @@ func (b *Bundle) Diff(p string, version int) (string, error) {
 		return "", fmt.Errorf("read version %s@%d: %w", current, version, err)
 	}
 
-	return udiff.Unified(
-		fmt.Sprintf("%s@v%d", current, version),
-		current+" (current)",
-		string(versionData),
-		string(currentData),
-	), nil
+	return unifiedDiff(fmt.Sprintf("%s@v%d", current, version), current+" (current)", string(versionData), string(currentData))
+}
+
+// unifiedDiff returns a unified line diff of before and after, or "" if they
+// are identical.
+func unifiedDiff(fromLabel, toLabel, before, after string) (string, error) {
+	u, err := udiff.ToUnifiedDiff(fromLabel, toLabel, before, udiff.Lines(before, after), udiff.DefaultContextLines)
+	if err != nil {
+		return "", err
+	}
+	// go-udiff v0.4.1 doesn't count the unchanged lines it copies between
+	// nearby edits in one hunk, so every later hunk's "+N" start is too low.
+	// A hunk starts in the new file at its old start plus the lines added so far.
+	offset := 0
+	for _, h := range u.Hunks {
+		h.ToLine = h.FromLine + offset
+		for _, l := range h.Lines {
+			switch l.Kind {
+			case udiff.Insert:
+				offset++
+			case udiff.Delete:
+				offset--
+			}
+		}
+	}
+	return u.String(), nil
 }
 
 func (b *Bundle) writeFile(c *Concept) error {
