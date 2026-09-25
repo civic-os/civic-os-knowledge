@@ -48,8 +48,8 @@ func TestListTools(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(resp.Tools) != 7 {
-		t.Errorf("got %d tools, want 7", len(resp.Tools))
+	if len(resp.Tools) != 9 {
+		t.Errorf("got %d tools, want 9", len(resp.Tools))
 		for _, tool := range resp.Tools {
 			t.Logf("  tool: %s", tool.Name)
 		}
@@ -63,6 +63,8 @@ func TestListTools(t *testing.T) {
 		"kb_update":  false,
 		"kb_history": false,
 		"kb_diff":    false,
+		"kb_move":    false,
+		"kb_links":   false,
 	}
 
 	for _, tool := range resp.Tools {

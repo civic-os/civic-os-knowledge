@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/civic-os/civic-os-knowledge/internal/bundle"
@@ -10,7 +11,7 @@ import (
 
 type CreateInput struct {
 	Path        string   `json:"path" jsonschema:"Relative file path for the new concept (e.g. clients/newclient.md)"`
-	Type        string   `json:"type" jsonschema:"Concept type: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis"`
+	Type        string   `json:"type" jsonschema:"Concept type: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis, Marketing Document"`
 	Title       string   `json:"title" jsonschema:"Human-readable title"`
 	Description string   `json:"description,omitempty" jsonschema:"One-sentence description"`
 	Resource    string   `json:"resource,omitempty" jsonschema:"External resource URL"`
@@ -27,11 +28,10 @@ func CreateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Crea
 			status = bundle.StatusStable
 		}
 		if !bundle.ValidStatus(status) {
-			result := &mcp.CallToolResult{}
-			result.SetError(fmt.Errorf("invalid status %q: must be draft, stable, or deprecated", input.Status))
-			return result, nil, nil
+			return errorResult("invalid status %q: must be draft, stable, or deprecated", input.Status), nil, nil
 		}
 
+		path := cleanPath(input.Path)
 		c := &bundle.Concept{
 			Meta: bundle.ConceptMeta{
 				Type:        input.Type,
@@ -42,39 +42,40 @@ func CreateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Crea
 				Timestamp:   bundle.NowTimestamp(),
 			},
 			Body: input.Body,
-			Path: input.Path,
+			Path: path,
 		}
 		// Only persist non-stable status in frontmatter
 		if status != bundle.StatusStable {
 			c.Meta.Status = status
 		}
 
-		if err := deps.Bundle.Create(c); err != nil {
-			result := &mcp.CallToolResult{}
-			result.SetError(fmt.Errorf("create failed: %w", err))
-			return result, nil, nil
+		report, err := deps.Bundle.Create(c)
+		if err != nil {
+			var broken *bundle.BrokenLinksError
+			if errors.As(err, &broken) {
+				return errorResult("create rejected: %w", err), nil, nil
+			}
+			return errorResult("create failed: %w", err), nil, nil
 		}
 
 		deps.Index.Add(c)
-		deps.onWrite(input.Path)
+		deps.onWrite(path)
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: fmt.Sprintf("Created concept: %s (version: 1)", input.Path)},
-			},
-		}, nil, nil
+		return textResult(fmt.Sprintf("Created concept: %s (version: 1)", path) + formatLinkReport(report)), nil, nil
 	}
 }
 
 func CreateTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name: "kb_create",
-		Description: `Create a new knowledge concept. Each concept should capture one idea, decision, or artifact — prefer creating a new linked concept over expanding an existing one. Cross-link related concepts with markdown paths (e.g. [Client Profile](/clients/neh.md)).
+		Description: `Create a new knowledge concept. Each concept should capture one idea, decision, or artifact — prefer creating a new linked concept over expanding an existing one.
 
-Concept types: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis.
+Concept types: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis, Marketing Document.
 
-Path convention: {type-plural}/{slug}.md (e.g. clients/neh.md, decisions/sqitch-migrations.md, runbooks/deploy-new-version.md, prospects/city-of-example.md, competitive-analysis/vendor-name.md).
+Path convention: {type-plural}/{slug}.md (e.g. clients/neh.md, decisions/sqitch-migrations.md, runbooks/deploy-new-version.md, prospects/city-of-example.md, competitive-analysis/vendor-name.md, marketing/brand-voice.md).
 
-Status: draft | stable | deprecated. Defaults to stable (omitted from YAML). Use draft for work-in-progress concepts, deprecated for concepts that should no longer be referenced.`,
+Status: draft | stable | deprecated. Defaults to stable (omitted from YAML). Use draft for work-in-progress concepts, deprecated for concepts that should no longer be referenced.
+
+` + linkRules,
 	}
 }

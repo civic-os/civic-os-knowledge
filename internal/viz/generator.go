@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/civic-os/civic-os-knowledge/internal/bundle"
@@ -12,8 +11,6 @@ import (
 
 //go:embed template/viz.html
 var templateHTML string
-
-var crossLinkRe = regexp.MustCompile(`\]\(([^)\s]+\.md)`)
 
 type graphNode struct {
 	ID          string   `json:"id"`
@@ -68,10 +65,8 @@ func Generate(concepts []*bundle.Concept) (string, error) {
 			Status:      c.Meta.Status,
 		})
 
-		// Extract cross-links from body
-		matches := crossLinkRe.FindAllStringSubmatch(c.Body, -1)
-		for _, m := range matches {
-			target := normalizePath(c.Path, m[1])
+		// Edges follow the same link model kb_move rewrites
+		for _, target := range bundle.ConceptLinks(c) {
 			edgeKey := c.Path + "\x00" + target
 			if pathSet[target] && target != c.Path && !edgeSeen[edgeKey] {
 				edgeSeen[edgeKey] = true
@@ -97,20 +92,4 @@ func Generate(concepts []*bundle.Concept) (string, error) {
 	)
 
 	return result, nil
-}
-
-// normalizePath resolves a relative link target against the source file's directory.
-func normalizePath(sourcePath, target string) string {
-	// Absolute paths (starting with /)
-	if strings.HasPrefix(target, "/") {
-		return strings.TrimPrefix(target, "/")
-	}
-
-	// Relative paths — resolve against source directory
-	parts := strings.Split(sourcePath, "/")
-	if len(parts) > 1 {
-		dir := strings.Join(parts[:len(parts)-1], "/")
-		return dir + "/" + target
-	}
-	return target
 }

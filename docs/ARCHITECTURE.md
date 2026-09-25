@@ -65,13 +65,15 @@ DO Spaces (S3-compatible) is the persistent store. The pod's local filesystem is
 
 ### 3. S3 Sync: On Every Write
 
-Every `kb_create` and `kb_update` call writes to local disk, then uploads the changed file(s) to S3. ~100-200ms added per write is imperceptible — writes are infrequent (Claude updating knowledge during conversations).
+Every `kb_create`, `kb_update` and `kb_move` call writes to local disk, then uploads the changed file(s) to S3. ~100-200ms added per write is imperceptible — writes are infrequent (Claude updating knowledge during conversations).
 
 S3 upload failures are logged as warnings but do not fail the MCP tool call. The local write succeeds regardless; S3 consistency is retried on the next write or can be recovered by a full sync.
 
+Moves also delete the old keys (concept file and snapshots). Uploads and deletes share one FIFO queue per syncer, and a move queues every upload before any delete, so an interrupted sync can leave a duplicate but never loses data.
+
 ### 4. viz.html Regeneration: On Every Write
 
-Regenerated after every `kb_create` and `kb_update`. At ~50 concepts, regeneration takes 1-5s. Writes are infrequent, so always-current beats the operational overhead of a cron job.
+Regenerated after every write, debounced (~250ms) so a move that rewrites many concepts regenerates once. Writes are infrequent, so always-current beats the operational overhead of a cron job.
 
 ### 5. Search: In-Memory Index
 
@@ -87,7 +89,8 @@ Single static binary, ~10-20MB container image (distroless), no runtime dependen
 - `github.com/modelcontextprotocol/go-sdk/mcp` — MCP server + Streamable HTTP transport
 - `github.com/coreos/go-oidc/v3` — Keycloak JWKS validation + OIDC browser flow for viz.html
 - `github.com/aws/aws-sdk-go-v2` — S3-compatible (DO Spaces) sync
-- `github.com/yuin/goldmark` + frontmatter extension — markdown/YAML parsing
+- `github.com/adrg/frontmatter` + `gopkg.in/yaml.v3` — frontmatter parsing and serialization
+- `github.com/aymanbagabas/go-udiff` — unified diffs for `kb_diff`
 
 OAuth 2.1 Bearer token validation for the MCP endpoint is ~50 lines of middleware using `go-oidc` (verify JWT signature against Keycloak JWKS, check audience/issuer/expiry). The Go SDK provides Protected Resource Metadata structs but not validation middleware — acceptable tradeoff for the benefits of a compiled, dependency-free binary.
 
@@ -109,7 +112,27 @@ Markdown files with YAML frontmatter on the filesystem.
 
 ### Versioning: Copy-on-Write File Snapshots
 
-On every `kb_update`, copy the current file to `.versions/{path}/{ISO-timestamp}.md` before overwriting. No Git, no database — just files.
+On every write that changes an existing concept, the current file is copied to `.versions/{dir}/{name}/{name}.{N}.md` before overwriting, where N is the version being replaced. A concept's version is its highest snapshot number plus one. No Git, no database — just files.
+
+### Links
+
+A **concept link** is a markdown link `[text](target)` whose target has no URL scheme and ends in `.md` (optionally `#anchor`). The canonical form is an absolute bundle path, `/dir/slug.md`. Targets with a scheme (`https://`, `chrome://`, `mailto:`) are external and never checked or rewritten. Links inside code spans or fenced blocks, and bare paths outside link syntax (including frontmatter values like `resource`), are not links.
+
+On `kb_create`/`kb_update`:
+- Relative links and links to a concept's former path are normalized to the canonical current path.
+- A write that **introduces** a link to a concept that doesn't exist is rejected with did-you-mean suggestions; nothing is written. Broken links already present in the previous version only warn, so old breakage never blocks unrelated edits.
+- Plain-text mentions of concept paths warn ("make it a markdown link").
+
+`kb_links` reports a concept's outbound links, backlinks and mentions, or audits the whole bundle.
+
+### Moves and Aliases
+
+`kb_move` renames concepts in batches, validated in full and applied all-or-nothing under the bundle lock:
+- Snapshots move with the concept (renamed to the new slug), so history and version numbering continue.
+- The old path is appended to the concept's `aliases` frontmatter list. Reads (`kb_read`, `kb_history`, `kb_diff`, `kb_links`) of an alias path return the current concept with a "moved" header; writes to an alias path are refused with the current path, so the caller re-reads.
+- A real file always wins over an alias. Moving a concept into or away from a path that another concept holds as an alias removes that stale alias, so each alias resolves to exactly one concept.
+- Concept links to a moved concept are rewritten across the bundle — in bodies and in markdown links inside frontmatter strings — by editing link targets in the raw file, so every other byte is preserved. Mentions of the old path outside links are reported, never rewritten.
+- The moved concept and every rewritten concept get one new version per batch, keeping optimistic concurrency and history intact; `timestamp` is untouched since these are mechanical changes.
 
 ### Bundle Location: Ephemeral Pod Storage, Not Git
 

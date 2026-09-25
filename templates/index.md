@@ -19,3 +19,9 @@
 * [Infrastructure](infrastructure/) - VPS, Kubernetes, Keycloak, S3 components
 
 * [Meetings](meetings/) - Meeting notes, decisions, and action items
+
+* [Prospects](prospects/) - Potential clients and relationship status
+
+* [Competitive Analysis](competitive-analysis/) - Competitor profiles and positioning
+
+* [Marketing](marketing/) - Brand, messaging, campaigns, and communication conventions

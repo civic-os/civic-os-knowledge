@@ -130,21 +130,3 @@ func TestGenerateDuplicateEdges(t *testing.T) {
 		t.Errorf("expected 1 edge from a.md to b.md, got %d", count)
 	}
 }
-
-func TestNormalizePath(t *testing.T) {
-	tests := []struct {
-		source, target, want string
-	}{
-		{"clients/a.md", "/instances/b.md", "instances/b.md"},
-		{"clients/a.md", "b.md", "clients/b.md"},
-		{"a.md", "b.md", "b.md"},
-		{"deep/nested/a.md", "/top.md", "top.md"},
-	}
-
-	for _, tt := range tests {
-		got := normalizePath(tt.source, tt.target)
-		if got != tt.want {
-			t.Errorf("normalizePath(%q, %q) = %q, want %q", tt.source, tt.target, got, tt.want)
-		}
-	}
-}

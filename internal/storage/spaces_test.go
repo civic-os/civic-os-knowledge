@@ -14,6 +14,7 @@ import (
 type mockStore struct {
 	mu      sync.Mutex
 	objects map[string][]byte
+	ops     []string // "put:key" / "delete:key", in the order applied
 }
 
 func newMockStore() *mockStore {
@@ -48,6 +49,16 @@ func (m *mockStore) PutObject(ctx context.Context, key string, data []byte) erro
 
 	m.objects[key] = make([]byte, len(data))
 	copy(m.objects[key], data)
+	m.ops = append(m.ops, "put:"+key)
+	return nil
+}
+
+func (m *mockStore) DeleteObject(ctx context.Context, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.objects, key)
+	m.ops = append(m.ops, "delete:"+key)
 	return nil
 }
 
@@ -195,5 +206,46 @@ func TestRoundTrip(t *testing.T) {
 	}
 	if string(data) != "round trip data" {
 		t.Errorf("round trip failed: %s", data)
+	}
+}
+
+func TestDeleteFile(t *testing.T) {
+	store := newMockStore()
+	store.objects["strategy/foo.md"] = []byte("old")
+	syncer := NewSyncer(store, t.TempDir())
+
+	syncer.DeleteFile("strategy/foo.md")
+	time.Sleep(50 * time.Millisecond)
+	syncer.Close()
+
+	if _, ok := store.getObject("strategy/foo.md"); ok {
+		t.Error("object should be deleted")
+	}
+}
+
+func TestPushThenDeleteOrdering(t *testing.T) {
+	store := newMockStore()
+	store.objects["strategy/foo.md"] = []byte("old")
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "marketing"), 0o755)
+	os.WriteFile(filepath.Join(dir, "marketing/foo.md"), []byte("moved"), 0o644)
+
+	// A move pushes the new key, then deletes the old one, on one FIFO queue.
+	syncer := NewSyncer(store, dir)
+	syncer.PushFile("marketing/foo.md")
+	syncer.DeleteFile("strategy/foo.md")
+	time.Sleep(100 * time.Millisecond)
+	syncer.Close()
+
+	if data, ok := store.getObject("marketing/foo.md"); !ok || string(data) != "moved" {
+		t.Errorf("new key missing or wrong: %q", data)
+	}
+	if _, ok := store.getObject("strategy/foo.md"); ok {
+		t.Error("old key should be deleted")
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if want := []string{"put:marketing/foo.md", "delete:strategy/foo.md"}; fmt.Sprint(store.ops) != fmt.Sprint(want) {
+		t.Errorf("ops = %v, want %v", store.ops, want)
 	}
 }

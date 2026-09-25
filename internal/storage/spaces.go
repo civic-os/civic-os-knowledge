@@ -20,6 +20,7 @@ type ObjectStore interface {
 	ListObjects(ctx context.Context, prefix string) ([]string, error)
 	GetObject(ctx context.Context, key string) ([]byte, error)
 	PutObject(ctx context.Context, key string, data []byte) error
+	DeleteObject(ctx context.Context, key string) error
 }
 
 // SpacesStore implements ObjectStore for DigitalOcean Spaces (S3-compatible).
@@ -110,6 +111,18 @@ func (s *SpacesStore) PutObject(ctx context.Context, key string, data []byte) er
 	return nil
 }
 
+func (s *SpacesStore) DeleteObject(ctx context.Context, key string) error {
+	fullKey := s.prefix + key
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &s.bucket,
+		Key:    &fullKey,
+	})
+	if err != nil {
+		return fmt.Errorf("delete object %s: %w", key, err)
+	}
+	return nil
+}
+
 // Syncer handles pulling from and pushing to S3.
 type Syncer struct {
 	store    ObjectStore
@@ -118,8 +131,9 @@ type Syncer struct {
 }
 
 type pushRequest struct {
-	key  string
-	data []byte
+	key    string
+	data   []byte
+	delete bool
 }
 
 // NewSyncer creates a Syncer that pushes asynchronously.
@@ -171,6 +185,12 @@ func (s *Syncer) PushFile(path string) {
 	s.pushCh <- pushRequest{key: path, data: data}
 }
 
+// DeleteFile queues a key for async deletion from S3. Requests share one
+// FIFO queue with PushFile, so a delete queued after a push runs after it.
+func (s *Syncer) DeleteFile(path string) {
+	s.pushCh <- pushRequest{key: path, delete: true}
+}
+
 // Close stops the push loop.
 func (s *Syncer) Close() {
 	close(s.pushCh)
@@ -178,6 +198,12 @@ func (s *Syncer) Close() {
 
 func (s *Syncer) pushLoop() {
 	for req := range s.pushCh {
+		if req.delete {
+			if err := s.store.DeleteObject(context.Background(), req.key); err != nil {
+				log.Printf("WARNING: S3 delete %s: %v", req.key, err)
+			}
+			continue
+		}
 		if err := s.store.PutObject(context.Background(), req.key, req.data); err != nil {
 			log.Printf("WARNING: S3 push %s: %v", req.key, err)
 		}

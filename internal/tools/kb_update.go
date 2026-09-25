@@ -23,19 +23,21 @@ type UpdateInput struct {
 
 func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *UpdateInput) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input *UpdateInput) (*mcp.CallToolResult, any, error) {
+		path := cleanPath(input.Path)
+
 		// Read existing to merge fields
-		existing, err := deps.Bundle.Read(input.Path)
+		existing, err := deps.Bundle.Read(path)
 		if err != nil {
-			result := &mcp.CallToolResult{}
-			result.SetError(fmt.Errorf("concept not found: %w", err))
-			return result, nil, nil
+			return notFoundResult(deps, "update", path, fmt.Errorf("concept not found: %w", err)), nil, nil
+		}
+		// Reads follow aliases; writes don't, so the caller re-reads the current path.
+		if existing.ResolvedFrom != "" {
+			return errorResult("%v", &bundle.MovedError{Path: path, Current: existing.Path}), nil, nil
 		}
 
 		// Validate status if provided
 		if input.Status != "" && !bundle.ValidStatus(input.Status) {
-			result := &mcp.CallToolResult{}
-			result.SetError(fmt.Errorf("invalid status %q: must be draft, stable, or deprecated", input.Status))
-			return result, nil, nil
+			return errorResult("invalid status %q: must be draft, stable, or deprecated", input.Status), nil, nil
 		}
 
 		// Merge: only update fields that are provided
@@ -62,32 +64,32 @@ func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Upda
 		}
 		existing.Meta.Timestamp = bundle.NowTimestamp()
 
-		if err := deps.Bundle.Update(existing, input.Version); err != nil {
-			if errors.Is(err, bundle.ErrConflict) {
+		report, err := deps.Bundle.Update(existing, input.Version)
+		if err != nil {
+			var broken *bundle.BrokenLinksError
+			var moved *bundle.MovedError
+			switch {
+			case errors.Is(err, bundle.ErrConflict):
 				// Re-read to get current version for the error message
-				current, readErr := deps.Bundle.Read(input.Path)
+				current, readErr := deps.Bundle.Read(path)
 				currentVer := 0
 				if readErr == nil {
 					currentVer = current.Version
 				}
-				result := &mcp.CallToolResult{}
-				result.SetError(fmt.Errorf("Conflict: concept modified since your read (current version: %d). Re-read with kb_read.", currentVer))
-				return result, nil, nil
+				return errorResult("Conflict: concept modified since your read (current version: %d). Re-read with kb_read.", currentVer), nil, nil
+			case errors.As(err, &broken):
+				return errorResult("update rejected: %w", err), nil, nil
+			case errors.As(err, &moved):
+				return errorResult("%w", err), nil, nil
 			}
-			result := &mcp.CallToolResult{}
-			result.SetError(fmt.Errorf("update failed: %w", err))
-			return result, nil, nil
+			return errorResult("update failed: %w", err), nil, nil
 		}
 
 		deps.Index.Add(existing)
-		deps.onWrite(input.Path)
-		deps.onSnapshot(bundle.SnapshotPath(input.Path, existing.Version-1))
+		deps.onWrite(path)
+		deps.onSnapshot(bundle.SnapshotPath(path, existing.Version-1))
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: fmt.Sprintf("Updated concept: %s (version: %d)", input.Path, existing.Version)},
-			},
-		}, nil, nil
+		return textResult(fmt.Sprintf("Updated concept: %s (version: %d)", path, existing.Version) + formatLinkReport(report)), nil, nil
 	}
 }
 
@@ -96,10 +98,12 @@ func UpdateTool() *mcp.Tool {
 		Name: "kb_update",
 		Description: `Update an existing knowledge concept. Only specified fields are changed; others are preserved. A version snapshot is created before updating.
 
-Use updates for corrections, status changes, and metadata fixes. For substantial new knowledge, prefer creating a new linked concept rather than appending to an existing one — this keeps concepts focused and the knowledge graph navigable.
+Use updates for corrections, status changes, and metadata fixes. For substantial new knowledge, prefer creating a new linked concept rather than appending to an existing one — this keeps concepts focused and the knowledge graph navigable. To rename or relocate a concept, use kb_move.
 
 Pass the version number from kb_read to enable optimistic concurrency control. If another session updated the concept since your read, the update is rejected with a conflict error — re-read and retry.
 
-Status lifecycle: set status to "deprecated" to mark a concept as superseded without deleting it. Use "draft" for work-in-progress.`,
+Status lifecycle: set status to "deprecated" to mark a concept as superseded without deleting it. Use "draft" for work-in-progress.
+
+` + linkRules,
 	}
 }

@@ -33,7 +33,7 @@ func TestCreateAndRead(t *testing.T) {
 		Path: "clients/test.md",
 	}
 
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
@@ -63,11 +63,11 @@ func TestCreateDuplicate(t *testing.T) {
 		Meta: ConceptMeta{Type: "Note", Title: "First"},
 		Path: "notes/a.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
-	err := b.Create(c)
+	_, err := b.Create(c)
 	if err == nil {
 		t.Fatal("expected error for duplicate create")
 	}
@@ -84,7 +84,7 @@ func TestList(t *testing.T) {
 			Meta: ConceptMeta{Type: "Note", Title: path},
 			Path: path,
 		}
-		if err := b.Create(c); err != nil {
+		if _, err := b.Create(c); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -111,13 +111,13 @@ func TestUpdateAndHistory(t *testing.T) {
 		Body: "Version 1 content.",
 		Path: "notes/a.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
 	c.Meta.Title = "V2"
 	c.Body = "Version 2 content."
-	if err := b.Update(c, 1); err != nil {
+	if _, err := b.Update(c, 1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -153,7 +153,7 @@ func TestUpdateNonExistent(t *testing.T) {
 		Meta: ConceptMeta{Type: "Note"},
 		Path: "notes/missing.md",
 	}
-	err := b.Update(c, 0)
+	_, err := b.Update(c, 0)
 	if err == nil {
 		t.Fatal("expected error for update of non-existent file")
 	}
@@ -167,21 +167,21 @@ func TestUpdateConflict(t *testing.T) {
 		Body: "Initial.",
 		Path: "notes/a.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
 	// First update at version 1 should succeed
 	c.Meta.Title = "V2"
 	c.Body = "Updated by session A."
-	if err := b.Update(c, 1); err != nil {
+	if _, err := b.Update(c, 1); err != nil {
 		t.Fatal(err)
 	}
 
 	// Second update with stale version 1 should fail
 	c.Meta.Title = "V2-stale"
 	c.Body = "Updated by session B (stale)."
-	err := b.Update(c, 1)
+	_, err := b.Update(c, 1)
 	if err == nil {
 		t.Fatal("expected conflict error")
 	}
@@ -192,7 +192,7 @@ func TestUpdateConflict(t *testing.T) {
 	// Update with correct version 2 should succeed
 	c.Meta.Title = "V3"
 	c.Body = "Updated by session B (correct)."
-	if err := b.Update(c, 2); err != nil {
+	if _, err := b.Update(c, 2); err != nil {
 		t.Fatal(err)
 	}
 
@@ -215,13 +215,13 @@ func TestUpdateNoVersionCheck(t *testing.T) {
 		Meta: ConceptMeta{Type: "Note", Title: "V1"},
 		Path: "notes/a.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
 	// Update with version 0 skips check (backwards compat)
 	c.Meta.Title = "V2"
-	if err := b.Update(c, 0); err != nil {
+	if _, err := b.Update(c, 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -242,17 +242,17 @@ func TestVersionBasedSnapshotNaming(t *testing.T) {
 		Body: "Content v1.",
 		Path: "notes/a.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
 	// Two updates
 	c.Meta.Title = "V2"
-	if err := b.Update(c, 0); err != nil {
+	if _, err := b.Update(c, 0); err != nil {
 		t.Fatal(err)
 	}
 	c.Meta.Title = "V3"
-	if err := b.Update(c, 0); err != nil {
+	if _, err := b.Update(c, 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -286,13 +286,13 @@ func TestDiff(t *testing.T) {
 		Body: "Original body.",
 		Path: "notes/a.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
 	c.Meta.Title = "Updated"
 	c.Body = "Updated body."
-	if err := b.Update(c, 0); err != nil {
+	if _, err := b.Update(c, 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -346,7 +346,7 @@ func TestConcurrentAccess(t *testing.T) {
 		Body: "Initial.",
 		Path: "notes/concurrent.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
@@ -392,7 +392,7 @@ func TestNestedDirectories(t *testing.T) {
 		Meta: ConceptMeta{Type: "Runbook", Title: "Deep"},
 		Path: "ops/deeply/nested/runbook.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
@@ -413,7 +413,7 @@ func TestListSkipsNonMarkdown(t *testing.T) {
 		Meta: ConceptMeta{Type: "Note"},
 		Path: "notes/a.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
@@ -438,14 +438,14 @@ func TestHistoryReturnsVersionNumbers(t *testing.T) {
 		Meta: ConceptMeta{Type: "Note", Title: "V1"},
 		Path: "notes/a.md",
 	}
-	if err := b.Create(c); err != nil {
+	if _, err := b.Create(c); err != nil {
 		t.Fatal(err)
 	}
 
 	// Three updates
 	for i := 2; i <= 4; i++ {
 		c.Meta.Title = "V" + string(rune('0'+i))
-		if err := b.Update(c, 0); err != nil {
+		if _, err := b.Update(c, 0); err != nil {
 			t.Fatal(err)
 		}
 	}

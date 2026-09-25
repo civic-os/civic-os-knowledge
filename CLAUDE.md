@@ -14,8 +14,9 @@
 │     Streamable HTTP + OAuth 2.1     │
 │                                     │
 │  MCP Tools: kb_read, kb_search,     │
-│     kb_list, kb_create,             │
-│     kb_update, kb_history, kb_diff  │
+│     kb_list, kb_create, kb_update,  │
+│     kb_move, kb_links,              │
+│     kb_history, kb_diff             │
 │                                     │
 │  HTTP: viz.html (Keycloak OIDC)     │
 │     /auth/login, /callback, /logout │
@@ -59,8 +60,10 @@ civic-os-knowledge/
 ## Key Concepts
 
 - **OKF (Open Knowledge Format)**: Google Cloud's v0.1 spec for representing knowledge as markdown files with YAML frontmatter. Each file = one concept. The only required field is `type`.
-- **Concept**: A single unit of knowledge stored as a markdown file with YAML frontmatter. Types: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis.
+- **Concept**: A single unit of knowledge stored as a markdown file with YAML frontmatter. Types: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis, Marketing Document.
 - **Bundle**: The directory of concept files served by the MCP server. Lives at runtime, not in Git.
+- **Concept link**: A markdown link to an absolute bundle path, `[Title](/dir/slug.md)`. Checked on write (new broken links are rejected), rewritten by `kb_move`, and drawn as graph edges. External `scheme://` links are free-form; bare paths and code spans are not links.
+- **Alias**: A former path of a moved concept, listed in its `aliases` frontmatter. Reads of an alias resolve to the concept; writes don't.
 - **viz.html**: A self-contained static HTML knowledge graph viewer (Cytoscape.js) generated from the OKF bundle. Provides search, type filtering, and backlink navigation.
 
 ## Development Commands
@@ -87,13 +90,14 @@ KB_BUNDLE_DIR=./testdata/bundle go run ./cmd/server
 - `github.com/modelcontextprotocol/go-sdk/mcp` — MCP server + Streamable HTTP
 - `github.com/coreos/go-oidc/v3` — Keycloak JWKS validation + OIDC browser flow
 - `github.com/aws/aws-sdk-go-v2` — S3-compatible (DO Spaces) sync
-- `github.com/yuin/goldmark` — Markdown/YAML frontmatter parsing
+- `github.com/adrg/frontmatter` + `gopkg.in/yaml.v3` — Frontmatter parsing/serialization
+- `github.com/aymanbagabas/go-udiff` — Unified diffs for `kb_diff`
 
 ## Design Decisions
 
 All architectural decisions are resolved. See `docs/ARCHITECTURE.md` for details:
 - Hosting on DO K8s cluster (single replica)
-- S3 (DO Spaces) as source of truth, local disk as cache
+- S3 (DO Spaces) as source of truth, local disk as cache (moves delete old keys after uploading new ones)
 - Go for compiled binary, small container image, long-term maintainability
 - In-memory search index, on-write viz.html regeneration and S3 sync
 - OAuth 2.1 Bearer for MCP, OIDC code flow for viz.html viewer
@@ -111,6 +115,7 @@ resource: https://mottpark.civic-os.org
 tags: [customer, payments, production]
 timestamp: 2026-06-19
 status: draft                 # Optional — draft | stable | deprecated (stable is default, omitted from YAML)
+aliases: [clients/old-slug.md] # Managed by kb_move — former paths that still resolve on read
 ---
 
 # Markdown body

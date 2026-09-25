@@ -36,14 +36,18 @@ type ConceptMeta struct {
 	Tags        []string `yaml:"tags,omitempty,flow"`
 	Timestamp   string   `yaml:"timestamp,omitempty"`
 	Status      string   `yaml:"status,omitempty"`
+	// Aliases lists paths this concept previously lived at. Managed by moves;
+	// reads of an alias path resolve to this concept.
+	Aliases []string `yaml:"aliases,omitempty,flow"`
 }
 
 // Concept represents a complete OKF concept file: frontmatter + body.
 type Concept struct {
-	Meta    ConceptMeta
-	Body    string
-	Path    string // relative path within the bundle
-	Version int    // derived from snapshot count, not stored in YAML
+	Meta         ConceptMeta
+	Body         string
+	Path         string // relative path within the bundle
+	Version      int    // derived from snapshot count, not stored in YAML
+	ResolvedFrom string // alias path the read was requested by, if any
 }
 
 // ParseConcept parses a markdown file with YAML frontmatter into a Concept.

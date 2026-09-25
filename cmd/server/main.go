@@ -9,7 +9,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/civic-os/civic-os-knowledge/internal/auth"
 	"github.com/civic-os/civic-os-knowledge/internal/bundle"
@@ -79,7 +81,10 @@ func main() {
 	vizDir := filepath.Dir(bundleDir)
 
 	// Generate initial viz.html
+	var vizMu sync.Mutex
 	regenViz := func() {
+		vizMu.Lock()
+		defer vizMu.Unlock()
 		concepts, err := b.List()
 		if err != nil {
 			log.Printf("WARNING: viz regen list: %v", err)
@@ -98,6 +103,18 @@ func main() {
 	}
 	regenViz()
 
+	// A move touches many files; coalesce their regenerations into one.
+	var vizTimerMu sync.Mutex
+	var vizTimer *time.Timer
+	scheduleViz := func() {
+		vizTimerMu.Lock()
+		defer vizTimerMu.Unlock()
+		if vizTimer != nil {
+			vizTimer.Stop()
+		}
+		vizTimer = time.AfterFunc(250*time.Millisecond, regenViz)
+	}
+
 	deps := &tools.Deps{
 		Bundle: b,
 		Index:  idx,
@@ -106,12 +123,25 @@ func main() {
 			if bundleSyncer != nil {
 				bundleSyncer.PushFile(path)
 			}
-			regenViz()
+			scheduleViz()
 		},
 		OnSnapshot: func(snapshotRelPath string) {
 			log.Printf("snapshot written: %s", snapshotRelPath)
 			if versionsSyncer != nil {
 				versionsSyncer.PushFile(snapshotRelPath)
+			}
+		},
+		OnDelete: func(path string) {
+			log.Printf("concept removed: %s", path)
+			if bundleSyncer != nil {
+				bundleSyncer.DeleteFile(path)
+			}
+			scheduleViz()
+		},
+		OnSnapshotDelete: func(snapshotRelPath string) {
+			log.Printf("snapshot removed: %s", snapshotRelPath)
+			if versionsSyncer != nil {
+				versionsSyncer.DeleteFile(snapshotRelPath)
 			}
 		},
 	}
