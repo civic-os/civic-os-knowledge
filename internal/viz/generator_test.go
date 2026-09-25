@@ -130,3 +130,24 @@ func TestGenerateDuplicateEdges(t *testing.T) {
 		t.Errorf("expected 1 edge from a.md to b.md, got %d", count)
 	}
 }
+
+func TestTypeColorsCoverRegistry(t *testing.T) {
+	for _, ct := range bundle.Types {
+		if typeColors[ct.Name] == "" {
+			t.Errorf("no viz color for registered type %q", ct.Name)
+		}
+	}
+	for name := range typeColors {
+		if _, ok := bundle.TypeByName(name); !ok {
+			t.Errorf("viz color for unregistered type %q", name)
+		}
+	}
+
+	html, err := Generate(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(html, "/*TYPE_COLORS*/") || !strings.Contains(html, `"Marketing Document":"#84cc16"`) {
+		t.Error("type colors not injected into the template")
+	}
+}

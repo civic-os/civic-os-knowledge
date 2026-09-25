@@ -92,7 +92,7 @@ func TestCreateDuplicateTool(t *testing.T) {
 	ctx := context.Background()
 
 	createFn := CreateHandler(deps)
-	input := &CreateInput{Path: "a.md", Type: "Note", Title: "A"}
+	input := &CreateInput{Path: "decisions/a.md", Type: "Decision Record", Title: "A"}
 	createFn(ctx, &mcp.CallToolRequest{}, input)
 
 	result, _, _ := createFn(ctx, &mcp.CallToolRequest{}, input)
@@ -150,8 +150,8 @@ func TestListTool(t *testing.T) {
 	ctx := context.Background()
 
 	createFn := CreateHandler(deps)
-	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{Path: "a.md", Type: "Note", Title: "A"})
-	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{Path: "b.md", Type: "Runbook", Title: "B"})
+	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{Path: "decisions/a.md", Type: "Decision Record", Title: "A"})
+	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{Path: "runbooks/b.md", Type: "Runbook", Title: "B"})
 
 	listFn := ListHandler(deps)
 
@@ -166,10 +166,10 @@ func TestListTool(t *testing.T) {
 	}
 
 	// List by type
-	result, _, _ = listFn(ctx, &mcp.CallToolRequest{}, &ListInput{Type: "Note"})
+	result, _, _ = listFn(ctx, &mcp.CallToolRequest{}, &ListInput{Type: "Decision Record"})
 	text = contentText(result)
 	if !strings.Contains(text, "1 concept(s)") {
-		t.Errorf("expected 1 concept of type Note: %s", text)
+		t.Errorf("expected 1 concept of type Decision Record: %s", text)
 	}
 }
 
@@ -191,15 +191,15 @@ func TestUpdateTool(t *testing.T) {
 
 	createFn := CreateHandler(deps)
 	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
-		Path:  "a.md",
-		Type:  "Note",
+		Path:  "decisions/a.md",
+		Type:  "Decision Record",
 		Title: "Original",
 		Body:  "Original body.",
 	})
 
 	updateFn := UpdateHandler(deps)
 	result, _, err := updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
-		Path:  "a.md",
+		Path:  "decisions/a.md",
 		Title: "Updated",
 		Body:  "Updated body.",
 	})
@@ -216,13 +216,13 @@ func TestUpdateTool(t *testing.T) {
 
 	// Verify update
 	readFn := ReadHandler(deps)
-	result, _, _ = readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "a.md"})
+	result, _, _ = readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "decisions/a.md"})
 	text = contentText(result)
 	if !strings.Contains(text, "title: Updated") {
 		t.Errorf("title not updated: %s", text)
 	}
 	// Type should be preserved
-	if !strings.Contains(text, "type: Note") {
+	if !strings.Contains(text, "type: Decision Record") {
 		t.Errorf("type not preserved: %s", text)
 	}
 	if !strings.Contains(text, "[version: 2]") {
@@ -247,8 +247,8 @@ func TestUpdateConflictTool(t *testing.T) {
 
 	createFn := CreateHandler(deps)
 	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
-		Path:  "a.md",
-		Type:  "Note",
+		Path:  "decisions/a.md",
+		Type:  "Decision Record",
 		Title: "V1",
 		Body:  "Body v1.",
 	})
@@ -257,7 +257,7 @@ func TestUpdateConflictTool(t *testing.T) {
 
 	// Update with version 1 succeeds
 	result, _, _ := updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
-		Path:    "a.md",
+		Path:    "decisions/a.md",
 		Title:   "V2",
 		Body:    "Body v2.",
 		Version: 1,
@@ -268,7 +268,7 @@ func TestUpdateConflictTool(t *testing.T) {
 
 	// Update with stale version 1 fails with conflict
 	result, _, _ = updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
-		Path:    "a.md",
+		Path:    "decisions/a.md",
 		Title:   "V2-stale",
 		Body:    "Body v2 stale.",
 		Version: 1,
@@ -283,7 +283,7 @@ func TestUpdateConflictTool(t *testing.T) {
 
 	// Update without version (0) always succeeds
 	result, _, _ = updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
-		Path:  "a.md",
+		Path:  "decisions/a.md",
 		Title: "V3",
 		Body:  "Body v3.",
 	})
@@ -301,13 +301,13 @@ func TestHistoryTool(t *testing.T) {
 	ctx := context.Background()
 
 	createFn := CreateHandler(deps)
-	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{Path: "a.md", Type: "Note", Title: "V1"})
+	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{Path: "decisions/a.md", Type: "Decision Record", Title: "V1"})
 
 	updateFn := UpdateHandler(deps)
-	updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{Path: "a.md", Title: "V2"})
+	updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{Path: "decisions/a.md", Title: "V2"})
 
 	histFn := HistoryHandler(deps)
-	result, _, err := histFn(ctx, &mcp.CallToolRequest{}, &HistoryInput{Path: "a.md"})
+	result, _, err := histFn(ctx, &mcp.CallToolRequest{}, &HistoryInput{Path: "decisions/a.md"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +325,7 @@ func TestHistoryEmpty(t *testing.T) {
 	ctx := context.Background()
 
 	histFn := HistoryHandler(deps)
-	result, _, _ := histFn(ctx, &mcp.CallToolRequest{}, &HistoryInput{Path: "a.md"})
+	result, _, _ := histFn(ctx, &mcp.CallToolRequest{}, &HistoryInput{Path: "decisions/a.md"})
 	text := contentText(result)
 	if !strings.Contains(text, "No version history") {
 		t.Errorf("expected no history: %s", text)
@@ -337,14 +337,14 @@ func TestDiffTool(t *testing.T) {
 	ctx := context.Background()
 
 	createFn := CreateHandler(deps)
-	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{Path: "a.md", Type: "Note", Title: "V1", Body: "Body v1."})
+	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{Path: "decisions/a.md", Type: "Decision Record", Title: "V1", Body: "Body v1."})
 
 	updateFn := UpdateHandler(deps)
-	updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{Path: "a.md", Title: "V2", Body: "Body v2."})
+	updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{Path: "decisions/a.md", Title: "V2", Body: "Body v2."})
 
 	// Diff against version 1
 	diffFn := DiffHandler(deps)
-	result, _, err := diffFn(ctx, &mcp.CallToolRequest{}, &DiffInput{Path: "a.md", Version: 1})
+	result, _, err := diffFn(ctx, &mcp.CallToolRequest{}, &DiffInput{Path: "decisions/a.md", Version: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,8 +363,8 @@ func TestCreateWithStatus(t *testing.T) {
 
 	createFn := CreateHandler(deps)
 	result, _, err := createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
-		Path:   "notes/draft.md",
-		Type:   "Note",
+		Path:   "decisions/draft.md",
+		Type:   "Decision Record",
 		Title:  "Draft Note",
 		Status: "draft",
 	})
@@ -377,7 +377,7 @@ func TestCreateWithStatus(t *testing.T) {
 
 	// Read back and verify status is in frontmatter
 	readFn := ReadHandler(deps)
-	result, _, _ = readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "notes/draft.md"})
+	result, _, _ = readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "decisions/draft.md"})
 	text := contentText(result)
 	if !strings.Contains(text, "status: draft") {
 		t.Errorf("expected status: draft in output: %s", text)
@@ -390,14 +390,14 @@ func TestCreateDefaultStatus(t *testing.T) {
 
 	createFn := CreateHandler(deps)
 	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
-		Path:  "notes/stable.md",
-		Type:  "Note",
+		Path:  "decisions/stable.md",
+		Type:  "Decision Record",
 		Title: "Stable Note",
 	})
 
 	// Read back and verify no status line (stable is omitted)
 	readFn := ReadHandler(deps)
-	result, _, _ := readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "notes/stable.md"})
+	result, _, _ := readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "decisions/stable.md"})
 	text := contentText(result)
 	if strings.Contains(text, "status:") {
 		t.Errorf("stable status should be omitted from YAML: %s", text)
@@ -410,8 +410,8 @@ func TestCreateInvalidStatus(t *testing.T) {
 
 	createFn := CreateHandler(deps)
 	result, _, _ := createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
-		Path:   "notes/bad.md",
-		Type:   "Note",
+		Path:   "decisions/bad.md",
+		Type:   "Decision Record",
 		Title:  "Bad Status",
 		Status: "invalid",
 	})
@@ -430,14 +430,14 @@ func TestUpdateStatus(t *testing.T) {
 
 	createFn := CreateHandler(deps)
 	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
-		Path:  "notes/toretire.md",
-		Type:  "Note",
+		Path:  "decisions/toretire.md",
+		Type:  "Decision Record",
 		Title: "Will Deprecate",
 	})
 
 	updateFn := UpdateHandler(deps)
 	result, _, err := updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
-		Path:   "notes/toretire.md",
+		Path:   "decisions/toretire.md",
 		Status: "deprecated",
 	})
 	if err != nil {
@@ -449,7 +449,7 @@ func TestUpdateStatus(t *testing.T) {
 
 	// Read back
 	readFn := ReadHandler(deps)
-	result, _, _ = readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "notes/toretire.md"})
+	result, _, _ = readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "decisions/toretire.md"})
 	text := contentText(result)
 	if !strings.Contains(text, "status: deprecated") {
 		t.Errorf("expected status: deprecated in output: %s", text)
@@ -462,8 +462,8 @@ func TestUpdatePreservesStatus(t *testing.T) {
 
 	createFn := CreateHandler(deps)
 	createFn(ctx, &mcp.CallToolRequest{}, &CreateInput{
-		Path:   "notes/keep.md",
-		Type:   "Note",
+		Path:   "decisions/keep.md",
+		Type:   "Decision Record",
 		Title:  "Draft Concept",
 		Status: "draft",
 	})
@@ -471,12 +471,12 @@ func TestUpdatePreservesStatus(t *testing.T) {
 	// Update title without changing status
 	updateFn := UpdateHandler(deps)
 	updateFn(ctx, &mcp.CallToolRequest{}, &UpdateInput{
-		Path:  "notes/keep.md",
+		Path:  "decisions/keep.md",
 		Title: "Updated Draft",
 	})
 
 	readFn := ReadHandler(deps)
-	result, _, _ := readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "notes/keep.md"})
+	result, _, _ := readFn(ctx, &mcp.CallToolRequest{}, &ReadInput{Path: "decisions/keep.md"})
 	text := contentText(result)
 	if !strings.Contains(text, "status: draft") {
 		t.Errorf("status should be preserved after title-only update: %s", text)

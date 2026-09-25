@@ -60,7 +60,8 @@ civic-os-knowledge/
 ## Key Concepts
 
 - **OKF (Open Knowledge Format)**: Google Cloud's v0.1 spec for representing knowledge as markdown files with YAML frontmatter. Each file = one concept. The only required field is `type`.
-- **Concept**: A single unit of knowledge stored as a markdown file with YAML frontmatter. Types: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis, Marketing Document.
+- **Concept**: A single unit of knowledge stored as a markdown file with YAML frontmatter, at `{folder}/{slug}.md`.
+- **Type registry**: `internal/bundle/types.go` maps each top-level folder to one concept type (clients/ → Client Profile, marketing/ → Marketing Document, …). The folder decides the type: `kb_create` infers it, `kb_move` changes it in the same write, and `kb_update` only accepts the folder's type. The registry is closed and hard-coded; adding a type means adding a row there (and a viz color in `internal/viz/generator.go`; tests enforce both).
 - **Bundle**: The directory of concept files served by the MCP server. Lives at runtime, not in Git.
 - **Concept link**: A markdown link to an absolute bundle path, `[Title](/dir/slug.md)`. Checked on write (new broken links are rejected), rewritten by `kb_move`, and drawn as graph edges. External `scheme://` links are free-form; bare paths and code spans are not links.
 - **Alias**: A former path of a moved concept, listed in its `aliases` frontmatter. Reads of an alias resolve to the concept; writes don't.
@@ -108,7 +109,7 @@ Every concept file follows this structure:
 
 ```yaml
 ---
-type: Client Profile          # Required — concept type
+type: Client Profile          # Required by OKF — must match the folder (clients/ → Client Profile)
 title: Mott Park Recreation   # Human-readable name
 description: Clubhouse reservation system with payment tracking.
 resource: https://mottpark.civic-os.org

@@ -25,7 +25,13 @@ func MoveHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *MoveIn
 	return func(ctx context.Context, req *mcp.CallToolRequest, input *MoveInput) (*mcp.CallToolResult, any, error) {
 		items := make([]bundle.MoveItem, len(input.Moves))
 		for i, m := range input.Moves {
-			items[i] = bundle.MoveItem{Path: cleanPath(m.Path), NewPath: cleanPath(m.NewPath), Version: m.Version}
+			newPath := cleanPath(m.NewPath)
+			// The destination folder decides the type, set in the same write.
+			conceptType, err := bundle.ResolveType(newPath, "")
+			if err != nil {
+				return errorResult("move failed: %v. Nothing was moved.", err), nil, nil
+			}
+			items[i] = bundle.MoveItem{Path: cleanPath(m.Path), NewPath: newPath, Version: m.Version, Type: conceptType}
 		}
 
 		res, err := deps.Bundle.MoveBatch(items)
@@ -70,8 +76,12 @@ func formatMoveResult(res *bundle.MoveResult) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Moved %d concept(s):\n", len(res.Moved))
 	for _, m := range res.Moved {
-		fmt.Fprintf(&sb, "- %s → %s (version %d → %d, %d snapshot(s) carried)\n",
-			m.From, m.Concept.Path, m.Concept.Version-1, m.Concept.Version, m.Carried)
+		typeChange := ""
+		if m.FromType != m.Concept.Meta.Type {
+			typeChange = fmt.Sprintf(", type %s → %s", m.FromType, m.Concept.Meta.Type)
+		}
+		fmt.Fprintf(&sb, "- %s → %s (version %d → %d%s, %d snapshot(s) carried)\n",
+			m.From, m.Concept.Path, m.Concept.Version-1, m.Concept.Version, typeChange, m.Carried)
 	}
 
 	if len(res.Relinked) > 0 {
@@ -101,12 +111,15 @@ func MoveTool() *mcp.Tool {
 		Description: `Move (rename) one or more concepts. Use it to reorganize the knowledgebase, e.g. moving marketing material from strategy/ to marketing/.
 
 - History follows the concept: version snapshots move to the new path and numbering continues.
+- The destination folder decides the type: moving into another type's folder changes the type in the same write. The destination must be a registered folder.
 - The old path is recorded under "aliases" in the concept's frontmatter, so reads of the old path still find it.
 - Markdown links to a moved concept are rewritten across the knowledgebase. Every rewritten concept, and the moved concept itself, gets one new version.
 - Bare paths outside markdown links are reported but not rewritten.
 
 Batch related moves in a single call so each affected concept is rewritten once. A batch is validated in full and applied all-or-nothing. Chains (a→b plus b→c) and swaps aren't allowed in one batch.
 
-Run kb_links on a concept first to see what links to it. Moving doesn't change the concept's type; use kb_update for that.`,
+Run kb_links on a concept first to see what links to it.
+
+` + typeTable(),
 	}
 }

@@ -21,7 +21,17 @@ func LinksHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Links
 			if err != nil {
 				return errorResult("link audit failed: %w", err), nil, nil
 			}
-			return textResult(formatLinkAudit(audit)), nil, nil
+			concepts, err := deps.Bundle.List()
+			if err != nil {
+				return errorResult("link audit failed: %w", err), nil, nil
+			}
+			var typeProblems []string
+			for _, c := range concepts {
+				if p := bundle.TypeProblem(c); p != "" {
+					typeProblems = append(typeProblems, p)
+				}
+			}
+			return textResult(formatLinkAudit(audit, typeProblems)), nil, nil
 		}
 
 		info, err := deps.Bundle.LinksOf(path)
@@ -67,7 +77,7 @@ func formatLinkInfo(info *bundle.LinkInfo) string {
 	return sb.String()
 }
 
-func formatLinkAudit(a *bundle.LinkAudit) string {
+func formatLinkAudit(a *bundle.LinkAudit, typeProblems []string) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Link audit: %d concepts, %d concept links, %d external links.\n", a.Concepts, a.Links, a.External)
 
@@ -85,6 +95,11 @@ func formatLinkAudit(a *bundle.LinkAudit) string {
 	for _, p := range a.Mentions {
 		sb.WriteString("- " + p.Source + " names " + p.Target + "\n")
 	}
+
+	fmt.Fprintf(&sb, "\nFolder/type mismatches (%d):\n", len(typeProblems))
+	for _, p := range typeProblems {
+		sb.WriteString("- " + p + "\n")
+	}
 	return sb.String()
 }
 
@@ -98,7 +113,7 @@ func countSuffix(n int) string {
 func LinksTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "kb_links",
-		Description: "Show a concept's outbound concept links (flagging broken ones, with suggestions), the concepts that link to it, and concepts that name its path without a markdown link. Use it before kb_move to see what will be rewritten. Omit path for a knowledgebase-wide audit of broken links, non-canonical links, and plain-text mentions of concept paths.",
+		Description: "Show a concept's outbound concept links (flagging broken ones, with suggestions), the concepts that link to it, and concepts that name its path without a markdown link. Use it before kb_move to see what will be rewritten. Omit path for a knowledgebase-wide audit of broken links, non-canonical links, plain-text mentions of concept paths, and concepts whose type doesn't match their folder.",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint: true,
 		},

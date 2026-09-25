@@ -39,7 +39,7 @@ func TestMoveToolRoundTrip(t *testing.T) {
 	}
 	text := contentText(result)
 	for _, want := range []string{
-		"strategy/brand-voice.md → marketing/brand-voice.md (version 2 → 3, 1 snapshot(s) carried)",
+		"strategy/brand-voice.md → marketing/brand-voice.md (version 2 → 3, type Strategy Document → Marketing Document, 1 snapshot(s) carried)",
 		"runbooks/website-guide.md (version 2)",
 		"- strategy/brand-voice.md: runbooks/website-guide.md",
 	} {
@@ -73,7 +73,7 @@ func TestMoveToolRoundTrip(t *testing.T) {
 		t.Errorf("search after move:\n%s", text)
 	}
 	list, _, _ := ListHandler(deps)(ctx, req, &ListInput{})
-	if text := contentText(list); strings.Contains(text, "`strategy/") || !strings.Contains(text, "`marketing/brand-voice.md` — Brand Voice (Strategy Document) [v3]") {
+	if text := contentText(list); strings.Contains(text, "`strategy/") || !strings.Contains(text, "`marketing/brand-voice.md` — Brand Voice (Marketing Document) [v3]") {
 		t.Errorf("list after move:\n%s", text)
 	}
 
@@ -103,18 +103,18 @@ func TestMoveToolRejectsWholeBatch(t *testing.T) {
 	ctx := context.Background()
 	req := &mcp.CallToolRequest{}
 	create := CreateHandler(deps)
-	create(ctx, req, &CreateInput{Path: "a.md", Type: "Note", Title: "A"})
-	create(ctx, req, &CreateInput{Path: "b.md", Type: "Note", Title: "B"})
+	create(ctx, req, &CreateInput{Path: "decisions/a.md", Title: "A"})
+	create(ctx, req, &CreateInput{Path: "decisions/b.md", Title: "B"})
 
 	result, _, _ := MoveHandler(deps)(ctx, req, &MoveInput{Moves: []MoveItemInput{
-		{Path: "a.md", NewPath: "x/a.md"},
-		{Path: "b.md", NewPath: "x/b.md", Version: 7},
+		{Path: "decisions/a.md", NewPath: "research/a.md"},
+		{Path: "decisions/b.md", NewPath: "research/b.md", Version: 7},
 	}})
 	if result.GetError() == nil || !strings.Contains(result.GetError().Error(), "Conflict") {
 		t.Fatalf("expected conflict: %v", result.GetError())
 	}
-	if read, _, _ := ReadHandler(deps)(ctx, req, &ReadInput{Path: "a.md"}); read.GetError() != nil {
-		t.Error("a.md must not move when the batch is rejected")
+	if read, _, _ := ReadHandler(deps)(ctx, req, &ReadInput{Path: "decisions/a.md"}); read.GetError() != nil || strings.Contains(contentText(read), "[moved:") {
+		t.Error("decisions/a.md must not move when the batch is rejected")
 	}
 }
 
@@ -151,8 +151,8 @@ func TestLinksTool(t *testing.T) {
 	ctx := context.Background()
 	req := &mcp.CallToolRequest{}
 	create := CreateHandler(deps)
-	create(ctx, req, &CreateInput{Path: "strategy/foo.md", Type: "Note", Title: "Foo"})
-	create(ctx, req, &CreateInput{Path: "clients/a.md", Type: "Note", Title: "A", Body: "[Foo](/strategy/foo.md) ×2 [Foo](/strategy/foo.md)"})
+	create(ctx, req, &CreateInput{Path: "strategy/foo.md", Title: "Foo"})
+	create(ctx, req, &CreateInput{Path: "clients/a.md", Title: "A", Body: "[Foo](/strategy/foo.md) ×2 [Foo](/strategy/foo.md)"})
 
 	result, _, _ := LinksHandler(deps)(ctx, req, &LinksInput{Path: "strategy/foo.md"})
 	if text := contentText(result); !strings.Contains(text, "Inbound links (1):\n- clients/a.md ×2") {
@@ -164,7 +164,7 @@ func TestLinksTool(t *testing.T) {
 		t.Errorf("audit:\n%s", text)
 	}
 
-	create(ctx, req, &CreateInput{Path: "strategy/brand-voice.md", Type: "Note", Title: "Voice"})
+	create(ctx, req, &CreateInput{Path: "strategy/brand-voice.md", Title: "Voice"})
 	result, _, _ = LinksHandler(deps)(ctx, req, &LinksInput{Path: "strategy/brand.md"})
 	if result.GetError() == nil || !strings.Contains(result.GetError().Error(), "did you mean strategy/brand-voice.md") {
 		t.Errorf("missing concept should suggest: %v", result.GetError())

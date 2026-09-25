@@ -13,14 +13,16 @@ import (
 type MoveItem struct {
 	Path    string // current path
 	NewPath string
-	Version int // expected current version; 0 skips the check
+	Version int    // expected current version; 0 skips the check
+	Type    string // if set, the concept's type in the same write (see ResolveType)
 }
 
 // MovedConcept is a concept at its new path.
 type MovedConcept struct {
-	From    string
-	Concept *Concept
-	Carried int // version snapshots carried from the old path
+	From     string
+	FromType string // type before the move
+	Concept  *Concept
+	Carried  int // version snapshots carried from the old path
 }
 
 // MoveResult describes everything a batch move changed.
@@ -39,11 +41,12 @@ type MoveResult struct {
 // touches disk. The current bytes are snapshotted at version, and the file
 // becomes version+1.
 type plannedWrite struct {
-	path    string
-	before  []byte
-	after   []byte
-	version int
-	concept *Concept
+	path     string
+	before   []byte
+	after    []byte
+	version  int
+	concept  *Concept
+	fromType string // moved concepts: type before the move
 }
 
 // MoveBatch renames concepts, carrying their version history, recording each
@@ -206,6 +209,10 @@ func (b *Bundle) planMovesUnlocked(items []MoveItem) (moved, relinked []plannedW
 			})
 		}
 		c.Meta.Aliases = withoutPath(appendUnique(c.Meta.Aliases, it.Path), it.NewPath)
+		fromType := c.Meta.Type
+		if it.Type != "" {
+			c.Meta.Type = it.Type
+		}
 		c.Path = it.NewPath
 		after, err := SerializeConcept(c)
 		if err != nil {
@@ -213,7 +220,7 @@ func (b *Bundle) planMovesUnlocked(items []MoveItem) (moved, relinked []plannedW
 		}
 		version := b.conceptVersion(it.Path)
 		c.Version = version + 1
-		moved = append(moved, plannedWrite{path: it.NewPath, before: before, after: after, version: version, concept: c})
+		moved = append(moved, plannedWrite{path: it.NewPath, before: before, after: after, version: version, concept: c, fromType: fromType})
 		recordMentions(c)
 	}
 
@@ -316,7 +323,7 @@ func (b *Bundle) renameForMoveUnlocked(items []MoveItem, moved []plannedWrite, r
 		}
 		emptied = append(emptied, emptiedDir{b.rootDir, filepath.Dir(from)})
 		res.Removed = append(res.Removed, it.Path)
-		res.Moved = append(res.Moved, MovedConcept{From: it.Path, Concept: moved[i].concept, Carried: carried})
+		res.Moved = append(res.Moved, MovedConcept{From: it.Path, FromType: moved[i].fromType, Concept: moved[i].concept, Carried: carried})
 	}
 	return undo, emptied, nil
 }

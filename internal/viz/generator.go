@@ -12,6 +12,27 @@ import (
 //go:embed template/viz.html
 var templateHTML string
 
+// typeColors gives each registered concept type a node color. Unregistered
+// types fall back to gray in the template.
+var typeColors = map[string]string{
+	"Client Profile":           "#f97316",
+	"Company Reference":        "#0ea5e9",
+	"Competitive Analysis":     "#f43f5e",
+	"Decision Record":          "#8b5cf6",
+	"Infrastructure Component": "#ef4444",
+	"Instance Deployment":      "#14b8a6",
+	"Marketing Document":       "#84cc16",
+	"Meeting Note":             "#6366f1",
+	"Partner Profile":          "#d946ef",
+	"Project Specification":    "#3b82f6",
+	"Proposal":                 "#ec4899",
+	"Prospect":                 "#facc15",
+	"Research Analysis":        "#06b6d4",
+	"Runbook":                  "#10b981",
+	"Strategy Document":        "#f59e0b",
+	"Tool Reference":           "#a8a29e",
+}
+
 type graphNode struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
@@ -83,13 +104,16 @@ func Generate(concepts []*bundle.Concept) (string, error) {
 		return "", fmt.Errorf("marshal graph data: %w", err)
 	}
 
-	// Replace the data placeholder in the template
-	result := strings.Replace(
-		templateHTML,
-		`/*DATA_JSON*/{"nodes":[],"edges":[]}/*END_DATA*/`,
-		string(jsonBytes),
-		1,
-	)
+	colorBytes, err := json.Marshal(typeColors)
+	if err != nil {
+		return "", fmt.Errorf("marshal type colors: %w", err)
+	}
+
+	// Replace the placeholders in the template
+	result := strings.NewReplacer(
+		`/*DATA_JSON*/{"nodes":[],"edges":[]}/*END_DATA*/`, string(jsonBytes),
+		`/*TYPE_COLORS*/{}/*END_TYPE_COLORS*/`, string(colorBytes),
+	).Replace(templateHTML)
 
 	return result, nil
 }

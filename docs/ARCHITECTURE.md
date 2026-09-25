@@ -114,6 +114,16 @@ Markdown files with YAML frontmatter on the filesystem.
 
 On every write that changes an existing concept, the current file is copied to `.versions/{dir}/{name}/{name}.{N}.md` before overwriting, where N is the version being replaced. A concept's version is its highest snapshot number plus one. No Git, no database — just files.
 
+### Types: The Folder Decides
+
+Concepts live at `{folder}/{slug}.md`, and each top-level folder holds exactly one type, defined by the registry in `internal/bundle/types.go`. OKF requires `type` in the frontmatter, so it is still written, but it can no longer disagree with the path:
+- `kb_create` infers the type from the folder; a different type is rejected with the folder that type belongs in. Unregistered folders are rejected.
+- `kb_move` sets the destination folder's type in the same write, so recategorizing is one operation and one version.
+- `kb_update` only accepts the type of the concept's current folder (to fix older concepts); recategorizing goes through `kb_move`.
+- Concepts written before the registry that break the rule produce warnings on update and appear in the `kb_links` audit; they are never blocked.
+
+The registry is closed and hard-coded, so new types are deliberate code changes. If it ever needs to vary per deployment, it can be loaded at startup (e.g. from an environment variable) with the current table as the default.
+
 ### Links
 
 A **concept link** is a markdown link `[text](target)` whose target has no URL scheme and ends in `.md` (optionally `#anchor`). The canonical form is an absolute bundle path, `/dir/slug.md`. Targets with a scheme (`https://`, `chrome://`, `mailto:`) are external and never checked or rewritten. Links inside code spans or fenced blocks, and bare paths outside link syntax (including frontmatter values like `resource`), are not links.

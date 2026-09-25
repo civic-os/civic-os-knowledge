@@ -11,7 +11,7 @@ import (
 
 type UpdateInput struct {
 	Path        string   `json:"path" jsonschema:"Relative file path of the concept to update"`
-	Type        string   `json:"type,omitempty" jsonschema:"Updated concept type"`
+	Type        string   `json:"type,omitempty" jsonschema:"Concept type. Only the type of the concept's folder is accepted (to fix older concepts); use kb_move to recategorize"`
 	Title       string   `json:"title,omitempty" jsonschema:"Updated title"`
 	Description string   `json:"description,omitempty" jsonschema:"Updated description"`
 	Resource    string   `json:"resource,omitempty" jsonschema:"Updated resource URL"`
@@ -40,10 +40,16 @@ func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Upda
 			return errorResult("invalid status %q: must be draft, stable, or deprecated", input.Status), nil, nil
 		}
 
-		// Merge: only update fields that are provided
+		// The folder decides the type: a type change must match it.
 		if input.Type != "" {
-			existing.Meta.Type = input.Type
+			conceptType, err := bundle.ResolveType(path, input.Type)
+			if err != nil {
+				return errorResult("update rejected: %v. To change a concept's type, move it into that type's folder with kb_move.", err), nil, nil
+			}
+			existing.Meta.Type = conceptType
 		}
+
+		// Merge: only update fields that are provided
 		if input.Title != "" {
 			existing.Meta.Title = input.Title
 		}
@@ -89,7 +95,11 @@ func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Upda
 		deps.onWrite(path)
 		deps.onSnapshot(bundle.SnapshotPath(path, existing.Version-1))
 
-		return textResult(fmt.Sprintf("Updated concept: %s (version: %d)", path, existing.Version) + formatLinkReport(report)), nil, nil
+		text := fmt.Sprintf("Updated concept: %s (version: %d)", path, existing.Version) + formatLinkReport(report)
+		if problem := bundle.TypeProblem(existing); problem != "" {
+			text += "\n\nType warning: " + problem + "."
+		}
+		return textResult(text), nil, nil
 	}
 }
 
@@ -98,7 +108,9 @@ func UpdateTool() *mcp.Tool {
 		Name: "kb_update",
 		Description: `Update an existing knowledge concept. Only specified fields are changed; others are preserved. A version snapshot is created before updating.
 
-Use updates for corrections, status changes, and metadata fixes. For substantial new knowledge, prefer creating a new linked concept rather than appending to an existing one — this keeps concepts focused and the knowledge graph navigable. To rename or relocate a concept, use kb_move.
+Use updates for corrections, status changes, and metadata fixes. For substantial new knowledge, prefer creating a new linked concept rather than appending to an existing one — this keeps concepts focused and the knowledge graph navigable.
+
+A concept's folder decides its type. To recategorize a concept, or to rename it, use kb_move; kb_update only accepts the type of the concept's current folder (useful for fixing older concepts).
 
 Pass the version number from kb_read to enable optimistic concurrency control. If another session updated the concept since your read, the update is rejected with a conflict error — re-read and retry.
 

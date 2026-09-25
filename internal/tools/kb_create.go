@@ -10,8 +10,8 @@ import (
 )
 
 type CreateInput struct {
-	Path        string   `json:"path" jsonschema:"Relative file path for the new concept (e.g. clients/newclient.md)"`
-	Type        string   `json:"type" jsonschema:"Concept type: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis, Marketing Document"`
+	Path        string   `json:"path" jsonschema:"Relative file path for the new concept: {folder}/{slug}.md (e.g. clients/newclient.md)"`
+	Type        string   `json:"type,omitempty" jsonschema:"Optional. The folder decides the type; if given, it must match the folder's type"`
 	Title       string   `json:"title" jsonschema:"Human-readable title"`
 	Description string   `json:"description,omitempty" jsonschema:"One-sentence description"`
 	Resource    string   `json:"resource,omitempty" jsonschema:"External resource URL"`
@@ -32,9 +32,13 @@ func CreateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Crea
 		}
 
 		path := cleanPath(input.Path)
+		conceptType, err := bundle.ResolveType(path, input.Type)
+		if err != nil {
+			return errorResult("create rejected: %w", err), nil, nil
+		}
 		c := &bundle.Concept{
 			Meta: bundle.ConceptMeta{
-				Type:        input.Type,
+				Type:        conceptType,
 				Title:       input.Title,
 				Description: input.Description,
 				Resource:    input.Resource,
@@ -61,7 +65,7 @@ func CreateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Crea
 		deps.Index.Add(c)
 		deps.onWrite(path)
 
-		return textResult(fmt.Sprintf("Created concept: %s (version: 1)", path) + formatLinkReport(report)), nil, nil
+		return textResult(fmt.Sprintf("Created concept: %s (%s, version: 1)", path, conceptType) + formatLinkReport(report)), nil, nil
 	}
 }
 
@@ -70,9 +74,9 @@ func CreateTool() *mcp.Tool {
 		Name: "kb_create",
 		Description: `Create a new knowledge concept. Each concept should capture one idea, decision, or artifact — prefer creating a new linked concept over expanding an existing one.
 
-Concept types: Client Profile, Instance Deployment, Project Specification, Decision Record, Runbook, Strategy Document, Research Analysis, Infrastructure Component, Proposal, Meeting Note, Prospect, Competitive Analysis, Marketing Document.
+Path: {folder}/{slug}.md, e.g. clients/neh.md or decisions/sqitch-migrations.md. The folder decides the concept's type, so type can be omitted; if given it must match. Concepts can only be created in registered folders.
 
-Path convention: {type-plural}/{slug}.md (e.g. clients/neh.md, decisions/sqitch-migrations.md, runbooks/deploy-new-version.md, prospects/city-of-example.md, competitive-analysis/vendor-name.md, marketing/brand-voice.md).
+` + typeTable() + `
 
 Status: draft | stable | deprecated. Defaults to stable (omitted from YAML). Use draft for work-in-progress concepts, deprecated for concepts that should no longer be referenced.
 
