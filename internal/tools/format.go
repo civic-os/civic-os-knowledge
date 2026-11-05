@@ -12,10 +12,10 @@ import (
 const linkRules = `Links: reference other concepts with markdown links using absolute bundle paths, e.g. [Client Profile](/clients/acme.md). Relative links and links to a concept's former path are normalized automatically. A write that adds a link to a concept that doesn't exist is rejected with suggestions, so create concepts in dependency order and add back-links afterwards with kb_update. External links with a scheme (https://, mailto:, …) are free-form and never checked. Bare paths in text or in code spans are not links.`
 
 // typeTable lists the registered folders and the type each one decides.
-func typeTable() string {
+func typeTable(types *bundle.Registry) string {
 	var sb strings.Builder
 	sb.WriteString("Folders and their types (the folder decides the type):")
-	for _, t := range bundle.Types {
+	for _, t := range types.Types() {
 		fmt.Fprintf(&sb, "\n- %s/ — %s: %s", t.Folder, t.Name, t.Holds)
 	}
 	return sb.String()

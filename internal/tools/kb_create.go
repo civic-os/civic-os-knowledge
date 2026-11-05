@@ -32,7 +32,7 @@ func CreateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Crea
 		}
 
 		path := cleanPath(input.Path)
-		conceptType, err := bundle.ResolveType(path, input.Type)
+		conceptType, err := deps.Types.Resolve(path, input.Type)
 		if err != nil {
 			return errorResult("create rejected: %w", err), nil, nil
 		}
@@ -69,14 +69,14 @@ func CreateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Crea
 	}
 }
 
-func CreateTool() *mcp.Tool {
+func CreateTool(types *bundle.Registry) *mcp.Tool {
 	return &mcp.Tool{
 		Name: "kb_create",
 		Description: `Create a new knowledge concept. Each concept should capture one idea, decision, or artifact — prefer creating a new linked concept over expanding an existing one.
 
-Path: {folder}/{slug}.md, e.g. clients/neh.md or decisions/sqitch-migrations.md. The folder decides the concept's type, so type can be omitted; if given it must match. Concepts can only be created in registered folders.
+Path: {folder}/{slug}.md, e.g. decisions/sqitch-migrations.md. The folder decides the concept's type, so type can be omitted; if given it must match. Concepts can only be created in registered folders.
 
-` + typeTable() + `
+` + typeTable(types) + `
 
 Status: draft | stable | deprecated. Defaults to stable (omitted from YAML). Use draft for work-in-progress concepts, deprecated for concepts that should no longer be referenced.
 

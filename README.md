@@ -5,7 +5,7 @@ MCP server and tooling for the Civic OS corporate knowledgebase. Serves an [OKF-
 ## What This Repo Contains
 
 - `cmd/` / `internal/` — MCP server source (Go)
-- `scripts/` — Seed and export utilities
+- `scripts/` — Seed, export and test utilities (`e2e_types.py`: end-to-end test of concept types on the local docker stack)
 - `templates/` — Example concept files showing the OKF format
 - `docs/` — Research, architecture decisions, and design documentation
 

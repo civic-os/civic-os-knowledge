@@ -27,7 +27,7 @@ func MoveHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *MoveIn
 		for i, m := range input.Moves {
 			newPath := cleanPath(m.NewPath)
 			// The destination folder decides the type, set in the same write.
-			conceptType, err := bundle.ResolveType(newPath, "")
+			conceptType, err := deps.Types.Resolve(newPath, "")
 			if err != nil {
 				return errorResult("move failed: %v. Nothing was moved.", err), nil, nil
 			}
@@ -105,7 +105,7 @@ func formatMoveResult(res *bundle.MoveResult) string {
 	return sb.String()
 }
 
-func MoveTool() *mcp.Tool {
+func MoveTool(types *bundle.Registry) *mcp.Tool {
 	return &mcp.Tool{
 		Name: "kb_move",
 		Description: `Move (rename) one or more concepts. Use it to reorganize the knowledgebase, e.g. moving marketing material from strategy/ to marketing/.
@@ -120,6 +120,6 @@ Batch related moves in a single call so each affected concept is rewritten once.
 
 Run kb_links on a concept first to see what links to it.
 
-` + typeTable(),
+` + typeTable(types),
 	}
 }

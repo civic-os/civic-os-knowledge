@@ -61,7 +61,7 @@ civic-os-knowledge/
 
 - **OKF (Open Knowledge Format)**: Google Cloud's v0.1 spec for representing knowledge as markdown files with YAML frontmatter. Each file = one concept. The only required field is `type`.
 - **Concept**: A single unit of knowledge stored as a markdown file with YAML frontmatter, at `{folder}/{slug}.md`.
-- **Type registry**: `internal/bundle/types.go` maps each top-level folder to one concept type (clients/ → Client Profile, marketing/ → Marketing Document, …). The folder decides the type: `kb_create` infers it, `kb_move` changes it in the same write, and `kb_update` only accepts the folder's type. The registry is closed and hard-coded; adding a type means adding a row there (and a viz color in `internal/viz/generator.go`; tests enforce both).
+- **Type registry**: a `bundle.Registry` maps each top-level folder to one concept type (clients/ → Client Profile, marketing/ → Marketing Document, …), injected through `tools.Deps` and `viz.Generate`. The folder decides the type: `kb_create` infers it, `kb_move` changes it in the same write, and `kb_update` only accepts the folder's type. It is loaded at startup from `KB_TYPES` (a JSON array of `{name, folder, holds, color?}` that replaces the defaults) or from the generic defaults in `internal/bundle/default_types.json`. Our instance's types live in `KB_TYPES` in `deploy/configmap.yaml.example` (committed) and the gitignored `deploy/configmap.yaml` that is applied; adding one means a row in both plus `TestExampleConfigTypes` and `templates/index.md` (tests enforce all of it, and `TestLocalConfigTypesMatchExample` fails locally if the two files drift).
 - **Bundle**: The directory of concept files served by the MCP server. Lives at runtime, not in Git.
 - **Concept link**: A markdown link to an absolute bundle path, `[Title](/dir/slug.md)`. Checked on write (new broken links are rejected), rewritten by `kb_move`, and drawn as graph edges. External `scheme://` links are free-form; bare paths and code spans are not links.
 - **Alias**: A former path of a moved concept, listed in its `aliases` frontmatter. Reads of an alias resolve to the concept; writes don't.
@@ -75,6 +75,10 @@ go run ./cmd/server
 
 # Run tests
 go test ./...
+
+# End-to-end test of concept types on the local docker stack (MinIO + Keycloak + kb-server,
+# compose project kb-e2e, torn down afterwards; --keep leaves it up, --bundle DIR seeds a real export)
+python3 scripts/e2e_types.py
 
 # Build binary
 go build -o kb-server ./cmd/server

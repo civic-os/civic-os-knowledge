@@ -12,6 +12,9 @@ kb-server
 .env.*
 !.env.example
 
+# Instance configuration (hosts, realm, bucket); commit configmap.yaml.example instead
+deploy/configmap.yaml
+
 # Local-only files (source material, private notes)
 LOCAL_*.md
 

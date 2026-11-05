@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -26,6 +27,11 @@ import (
 func main() {
 	bundleDir := envOr("KB_BUNDLE_DIR", "/data/knowledge/bundle")
 	port := envOr("KB_PORT", "8080")
+
+	types, err := loadTypes()
+	if err != nil {
+		log.Fatalf("load concept types: %v", err)
+	}
 
 	b, err := bundle.NewBundle(bundleDir)
 	if err != nil {
@@ -76,6 +82,7 @@ func main() {
 	}
 	idx.BuildFromBundle(concepts)
 	log.Printf("indexed %d concepts from %s", len(concepts), bundleDir)
+	warnTypeProblems(types, concepts)
 
 	// viz.html directory (sibling of bundle dir)
 	vizDir := filepath.Dir(bundleDir)
@@ -90,7 +97,7 @@ func main() {
 			log.Printf("WARNING: viz regen list: %v", err)
 			return
 		}
-		html, err := viz.Generate(concepts)
+		html, err := viz.Generate(concepts, types)
 		if err != nil {
 			log.Printf("WARNING: viz regen generate: %v", err)
 			return
@@ -118,6 +125,7 @@ func main() {
 	deps := &tools.Deps{
 		Bundle: b,
 		Index:  idx,
+		Types:  types,
 		OnWrite: func(path string) {
 			log.Printf("concept written: %s", path)
 			if bundleSyncer != nil {
@@ -253,6 +261,58 @@ func main() {
 	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatalf("server error: %v", err)
 	}
+}
+
+// loadTypes returns the concept type registry: KB_TYPES (a JSON array of
+// types) when set, which replaces the defaults, or the built-in defaults.
+func loadTypes() (*bundle.Registry, error) {
+	source := "built-in defaults (KB_TYPES unset)"
+	var types *bundle.Registry
+	if raw := strings.TrimSpace(os.Getenv("KB_TYPES")); raw != "" {
+		var err error
+		if types, err = bundle.ParseRegistry([]byte(raw)); err != nil {
+			return nil, fmt.Errorf("KB_TYPES: %w", err)
+		}
+		source = "KB_TYPES"
+	} else {
+		types = bundle.DefaultRegistry()
+	}
+	folders := make([]string, 0, len(types.Types()))
+	for _, t := range types.Types() {
+		folders = append(folders, t.Folder+"/")
+	}
+	log.Printf("concept types from %s: %s", source, strings.Join(folders, ", "))
+	return types, nil
+}
+
+// warnTypeProblems logs stored concepts the registry doesn't accept, grouped
+// by folder. A missing or incomplete KB_TYPES shows up here on the first boot:
+// those folders stay readable but no longer take new concepts.
+func warnTypeProblems(types *bundle.Registry, concepts []*bundle.Concept) {
+	counts := make(map[string]int)
+	var folders []string
+	for _, c := range concepts {
+		if types.Problem(c) == "" {
+			continue
+		}
+		f := bundle.TopFolder(c.Path) + "/"
+		if counts[f] == 0 {
+			folders = append(folders, f)
+		}
+		counts[f]++
+	}
+	if len(folders) == 0 {
+		return
+	}
+	sort.Strings(folders)
+	parts := make([]string, len(folders))
+	total := 0
+	for i, f := range folders {
+		parts[i] = fmt.Sprintf("%s (%d)", f, counts[f])
+		total += counts[f]
+	}
+	log.Printf("WARNING: %d concepts don't match the concept types (unregistered folder or stray type): %s. Run kb_links with no path for details.",
+		total, strings.Join(parts, ", "))
 }
 
 func envOr(key, fallback string) string {

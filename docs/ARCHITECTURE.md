@@ -116,13 +116,19 @@ On every write that changes an existing concept, the current file is copied to `
 
 ### Types: The Folder Decides
 
-Concepts live at `{folder}/{slug}.md`, and each top-level folder holds exactly one type, defined by the registry in `internal/bundle/types.go`. OKF requires `type` in the frontmatter, so it is still written, but it can no longer disagree with the path:
+Concepts live at `{folder}/{slug}.md`, and each top-level folder holds exactly one type, defined by the type registry (`bundle.Registry`). OKF requires `type` in the frontmatter, so it is still written, but it can no longer disagree with the path:
 - `kb_create` infers the type from the folder; a different type is rejected with the folder that type belongs in. Unregistered folders are rejected.
 - `kb_move` sets the destination folder's type in the same write, so recategorizing is one operation and one version.
 - `kb_update` only accepts the type of the concept's current folder (to fix older concepts); recategorizing goes through `kb_move`.
-- Concepts written before the registry that break the rule produce warnings on update and appear in the `kb_links` audit; they are never blocked.
+- Concepts that break the rule (written before the registry, or in a folder the registry no longer lists) stay readable and editable: updates succeed with a type warning, and they appear in the `kb_links` audit.
 
-The registry is closed and hard-coded, so new types are deliberate code changes. If it ever needs to vary per deployment, it can be loaded at startup (e.g. from an environment variable) with the current table as the default.
+The registry is per-deployment configuration, loaded once at startup and fixed while the server runs:
+- `KB_TYPES` holds a JSON array of `{"name", "folder", "holds", "color"}` objects (`color` is an optional `#rrggbb` viz color; types without one get a stable palette color hashed from the name). It **replaces** the defaults; there is no merging.
+- Without `KB_TYPES`, the server uses the generic defaults in `internal/bundle/default_types.json` (decisions, meeting notes, projects, research, runbooks, tools).
+- Invalid config (bad JSON, unknown fields, duplicate names or folders, nested folders, missing `holds`, malformed colors) stops the server at startup.
+- At startup the server logs where the registry came from and warns, per folder, about stored concepts it doesn't accept. Dropping a type, or losing `KB_TYPES`, doesn't hide those concepts, but their folders stop taking new concepts and moves.
+
+Our instance's types (the Civic OS set) live in `KB_TYPES` in `deploy/configmap.yaml.example`. The applied `deploy/configmap.yaml` holds the real hosts, realm and bucket and is gitignored, like `secret.yaml`. `TestExampleConfigTypes` validates the committed type set, `TestTemplatesMatchRegistry` checks `templates/` against it, and `TestLocalConfigTypesMatchExample` fails when a local `configmap.yaml` has drifted from it (CI has none and skips). `scripts/e2e_types.py` runs the server with that type set (and with none, a reduced one, and malformed ones) on the local docker stack, through S3 sync and Keycloak bearer auth. Adding a type means editing both ConfigMap files and `TestExampleConfigTypes`, applying the ConfigMap, and restarting the pod.
 
 ### Links
 

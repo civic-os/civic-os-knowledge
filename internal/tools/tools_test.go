@@ -23,11 +23,34 @@ func testDeps(t *testing.T) *Deps {
 	return &Deps{
 		Bundle: b,
 		Index:  idx,
+		Types:  testTypes(t),
 		OnWrite: func(path string) {
 		},
 		OnSnapshot: func(snapshotRelPath string) {
 		},
 	}
+}
+
+// testTypes registers the folders the tool tests write to. competitors/,
+// notes/ and branding/ stay unregistered on purpose.
+func testTypes(t *testing.T) *bundle.Registry {
+	t.Helper()
+	types, err := bundle.NewRegistry([]bundle.ConceptType{
+		{Name: "Client Profile", Folder: "clients", Holds: "Clients"},
+		{Name: "Company Reference", Folder: "company", Holds: "Company facts"},
+		{Name: "Competitive Analysis", Folder: "competitive-analysis", Holds: "Competitors"},
+		{Name: "Decision Record", Folder: "decisions", Holds: "Decisions"},
+		{Name: "Infrastructure Component", Folder: "infrastructure", Holds: "Servers"},
+		{Name: "Marketing Document", Folder: "marketing", Holds: "Brand and messaging"},
+		{Name: "Prospect", Folder: "prospects", Holds: "Leads"},
+		{Name: "Research Analysis", Folder: "research", Holds: "Research"},
+		{Name: "Runbook", Folder: "runbooks", Holds: "Procedures"},
+		{Name: "Strategy Document", Folder: "strategy", Holds: "Strategy"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return types
 }
 
 func TestCreateAndReadTool(t *testing.T) {

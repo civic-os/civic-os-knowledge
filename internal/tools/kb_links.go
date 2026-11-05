@@ -27,7 +27,7 @@ func LinksHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Links
 			}
 			var typeProblems []string
 			for _, c := range concepts {
-				if p := bundle.TypeProblem(c); p != "" {
+				if p := deps.Types.Problem(c); p != "" {
 					typeProblems = append(typeProblems, p)
 				}
 			}

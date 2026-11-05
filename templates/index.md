@@ -20,6 +20,8 @@ Each folder holds one concept type; the folder decides the type.
 
 * [Partners](partners/) - Partner organizations and programs
 
+* [Project Modules](module/) - Deployable modules within a project and their specifications
+
 * [Projects](projects/) - Active project specifications and requirements
 
 * [Proposals](proposals/) - Sales proposals and grant applications

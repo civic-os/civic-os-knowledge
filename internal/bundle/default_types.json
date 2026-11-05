@@ -1,0 +1,8 @@
+[
+  {"name": "Decision Record", "folder": "decisions", "holds": "Architecture and business decisions", "color": "#8b5cf6"},
+  {"name": "Meeting Note", "folder": "meeting-notes", "holds": "Meeting notes, decisions and action items", "color": "#6366f1"},
+  {"name": "Project Specification", "folder": "projects", "holds": "Project requirements and specifications", "color": "#3b82f6"},
+  {"name": "Research Analysis", "folder": "research", "holds": "Market, technical and ecosystem research", "color": "#06b6d4"},
+  {"name": "Runbook", "folder": "runbooks", "holds": "Repeatable operational procedures", "color": "#10b981"},
+  {"name": "Tool Reference", "folder": "tools", "holds": "Third-party tools and how they're used", "color": "#a8a29e"}
+]

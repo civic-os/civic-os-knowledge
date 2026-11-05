@@ -1,0 +1,46 @@
+# Non-secret configuration. Copy to configmap.yaml (gitignored), set the hosts,
+# realm and bucket for your deployment, and apply. Credentials belong in the
+# knowledge-secrets Secret (see secret.yaml.example), never here.
+#
+# KB_TYPES below is the Civic OS type set. TestExampleConfigTypes validates it,
+# and when a local configmap.yaml exists, checks that its KB_TYPES matches.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: knowledge-config
+  namespace: internal
+data:
+  KB_PORT: "8080"
+  KB_EXTERNAL_URL: "https://kb.example.org"
+  KB_KEYCLOAK_URL: "https://auth.example.org"
+  KB_KEYCLOAK_REALM: "your-realm"
+  KB_KEYCLOAK_CLIENT_ID: "civic-os-kb"
+  KB_VIZ_ROLES: "kb-viewer,kb-admin"
+  KB_S3_ENDPOINT: "https://nyc3.digitaloceanspaces.com"
+  KB_S3_REGION: "nyc3"
+  KB_S3_BUCKET: "your-bucket"
+  KB_S3_PREFIX: "knowledge/"
+  # Concept types, one per top-level folder (the folder decides the type).
+  # Replaces the built-in defaults entirely; color is optional (#rrggbb).
+  # Removing a type leaves its concepts readable but closes the folder to
+  # new concepts.
+  KB_TYPES: |
+    [
+      {"name": "Client Profile", "folder": "clients", "holds": "Clients and relationship status", "color": "#f97316"},
+      {"name": "Company Reference", "folder": "company", "holds": "Company facts: registration, address, financials, people", "color": "#0ea5e9"},
+      {"name": "Competitive Analysis", "folder": "competitive-analysis", "holds": "Competitors and how Civic OS compares", "color": "#f43f5e"},
+      {"name": "Decision Record", "folder": "decisions", "holds": "Architecture and business decisions", "color": "#8b5cf6"},
+      {"name": "Infrastructure Component", "folder": "infrastructure", "holds": "Servers, clusters and shared services", "color": "#ef4444"},
+      {"name": "Instance Deployment", "folder": "instances", "holds": "Per-instance deployment status and configuration", "color": "#14b8a6"},
+      {"name": "Marketing Document", "folder": "marketing", "holds": "Brand, messaging, campaigns and communication conventions", "color": "#84cc16"},
+      {"name": "Meeting Note", "folder": "meeting-notes", "holds": "Meeting notes, decisions and action items", "color": "#6366f1"},
+      {"name": "Partner Profile", "folder": "partners", "holds": "Partner organizations and programs", "color": "#d946ef"},
+      {"name": "Project Module", "folder": "module", "holds": "Deployable modules within a project and their specifications", "color": "#93c5fd"},
+      {"name": "Project Specification", "folder": "projects", "holds": "Project requirements and specifications", "color": "#3b82f6"},
+      {"name": "Proposal", "folder": "proposals", "holds": "Sales proposals and grant applications", "color": "#ec4899"},
+      {"name": "Prospect", "folder": "prospects", "holds": "Potential clients and leads", "color": "#facc15"},
+      {"name": "Research Analysis", "folder": "research", "holds": "Market, technical and ecosystem research", "color": "#06b6d4"},
+      {"name": "Runbook", "folder": "runbooks", "holds": "Repeatable operational procedures", "color": "#10b981"},
+      {"name": "Strategy Document", "folder": "strategy", "holds": "Business strategy, pricing and positioning", "color": "#f59e0b"},
+      {"name": "Tool Reference", "folder": "tools", "holds": "Third-party tools and how they're used", "color": "#a8a29e"}
+    ]

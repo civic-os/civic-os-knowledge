@@ -19,7 +19,11 @@ func testSession(t *testing.T) *mcp.ClientSession {
 	}
 
 	idx := search.NewIndex()
-	deps := &tools.Deps{Bundle: b, Index: idx}
+	types, err := bundle.NewRegistry([]bundle.ConceptType{{Name: "Client Profile", Folder: "clients", Holds: "Clients"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps := &tools.Deps{Bundle: b, Index: idx, Types: types}
 	server := NewMCPServer(deps)
 
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()

@@ -42,7 +42,7 @@ func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Upda
 
 		// The folder decides the type: a type change must match it.
 		if input.Type != "" {
-			conceptType, err := bundle.ResolveType(path, input.Type)
+			conceptType, err := deps.Types.Resolve(path, input.Type)
 			if err != nil {
 				return errorResult("update rejected: %v. To change a concept's type, move it into that type's folder with kb_move.", err), nil, nil
 			}
@@ -96,7 +96,7 @@ func UpdateHandler(deps *Deps) func(context.Context, *mcp.CallToolRequest, *Upda
 		deps.onSnapshot(bundle.SnapshotPath(path, existing.Version-1))
 
 		text := fmt.Sprintf("Updated concept: %s (version: %d)", path, existing.Version) + formatLinkReport(report)
-		if problem := bundle.TypeProblem(existing); problem != "" {
+		if problem := deps.Types.Problem(existing); problem != "" {
 			text += "\n\nType warning: " + problem + "."
 		}
 		return textResult(text), nil, nil

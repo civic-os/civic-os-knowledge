@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"strings"
 
 	"github.com/civic-os/civic-os-knowledge/internal/bundle"
@@ -12,25 +13,29 @@ import (
 //go:embed template/viz.html
 var templateHTML string
 
-// typeColors gives each registered concept type a node color. Unregistered
-// types fall back to gray in the template.
-var typeColors = map[string]string{
-	"Client Profile":           "#f97316",
-	"Company Reference":        "#0ea5e9",
-	"Competitive Analysis":     "#f43f5e",
-	"Decision Record":          "#8b5cf6",
-	"Infrastructure Component": "#ef4444",
-	"Instance Deployment":      "#14b8a6",
-	"Marketing Document":       "#84cc16",
-	"Meeting Note":             "#6366f1",
-	"Partner Profile":          "#d946ef",
-	"Project Specification":    "#3b82f6",
-	"Proposal":                 "#ec4899",
-	"Prospect":                 "#facc15",
-	"Research Analysis":        "#06b6d4",
-	"Runbook":                  "#10b981",
-	"Strategy Document":        "#f59e0b",
-	"Tool Reference":           "#a8a29e",
+// palette colors registered types that don't set their own. Gray is left out:
+// the template draws unregistered types gray.
+var palette = []string{
+	"#f97316", "#0ea5e9", "#f43f5e", "#8b5cf6", "#ef4444", "#14b8a6",
+	"#84cc16", "#6366f1", "#d946ef", "#3b82f6", "#ec4899", "#facc15",
+	"#06b6d4", "#10b981", "#f59e0b", "#22c55e", "#a855f7", "#e11d48",
+}
+
+// typeColors gives each registered type a node color: its configured color,
+// or a palette color picked by a hash of its name, so it stays put when the
+// registry is reordered or extended.
+func typeColors(types *bundle.Registry) map[string]string {
+	colors := make(map[string]string)
+	for _, t := range types.Types() {
+		if t.Color != "" {
+			colors[t.Name] = t.Color
+			continue
+		}
+		h := fnv.New32a()
+		h.Write([]byte(t.Name))
+		colors[t.Name] = palette[h.Sum32()%uint32(len(palette))]
+	}
+	return colors
 }
 
 type graphNode struct {
@@ -62,8 +67,9 @@ func newGraphData() graphData {
 	}
 }
 
-// Generate produces a self-contained viz.html from the given concepts.
-func Generate(concepts []*bundle.Concept) (string, error) {
+// Generate produces a self-contained viz.html from the given concepts, coloring
+// nodes by the registered types.
+func Generate(concepts []*bundle.Concept, types *bundle.Registry) (string, error) {
 	// Build node index
 	pathSet := make(map[string]bool, len(concepts))
 	for _, c := range concepts {
@@ -104,7 +110,7 @@ func Generate(concepts []*bundle.Concept) (string, error) {
 		return "", fmt.Errorf("marshal graph data: %w", err)
 	}
 
-	colorBytes, err := json.Marshal(typeColors)
+	colorBytes, err := json.Marshal(typeColors(types))
 	if err != nil {
 		return "", fmt.Errorf("marshal type colors: %w", err)
 	}

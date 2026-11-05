@@ -8,7 +8,7 @@ import (
 )
 
 func TestGenerateEmpty(t *testing.T) {
-	html, err := Generate(nil)
+	html, err := Generate(nil, bundle.DefaultRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestGenerateWithNodes(t *testing.T) {
 		},
 	}
 
-	html, err := Generate(concepts)
+	html, err := Generate(concepts, bundle.DefaultRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestGenerateEdgeDetection(t *testing.T) {
 		},
 	}
 
-	html, err := Generate(concepts)
+	html, err := Generate(concepts, bundle.DefaultRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestGenerateNoSelfLinks(t *testing.T) {
 		},
 	}
 
-	html, err := Generate(concepts)
+	html, err := Generate(concepts, bundle.DefaultRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestGenerateDuplicateEdges(t *testing.T) {
 		},
 	}
 
-	html, err := Generate(concepts)
+	html, err := Generate(concepts, bundle.DefaultRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,23 +131,37 @@ func TestGenerateDuplicateEdges(t *testing.T) {
 	}
 }
 
-func TestTypeColorsCoverRegistry(t *testing.T) {
-	for _, ct := range bundle.Types {
-		if typeColors[ct.Name] == "" {
-			t.Errorf("no viz color for registered type %q", ct.Name)
-		}
-	}
-	for name := range typeColors {
-		if _, ok := bundle.TypeByName(name); !ok {
-			t.Errorf("viz color for unregistered type %q", name)
-		}
-	}
-
-	html, err := Generate(nil)
+func TestTypeColors(t *testing.T) {
+	types, err := bundle.NewRegistry([]bundle.ConceptType{
+		{Name: "Project Module", Folder: "module", Holds: "Modules", Color: "#93c5fd"},
+		{Name: "Uncolored", Folder: "uncolored", Holds: "No color set"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(html, "/*TYPE_COLORS*/") || !strings.Contains(html, `"Marketing Document":"#84cc16"`) {
+	colors := typeColors(types)
+	if colors["Project Module"] != "#93c5fd" {
+		t.Errorf("configured color not used: %q", colors["Project Module"])
+	}
+	fallback := colors["Uncolored"]
+	if fallback == "" || fallback == "#6b7280" {
+		t.Errorf("a type without a color should get a palette color, got %q", fallback)
+	}
+
+	// The fallback depends only on the name, not on registry order.
+	reordered, _ := bundle.NewRegistry([]bundle.ConceptType{
+		{Name: "Other", Folder: "other", Holds: "x"},
+		{Name: "Uncolored", Folder: "uncolored", Holds: "No color set"},
+	})
+	if got := typeColors(reordered)["Uncolored"]; got != fallback {
+		t.Errorf("fallback color moved with registry order: %q vs %q", got, fallback)
+	}
+
+	html, err := Generate(nil, types)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(html, "/*TYPE_COLORS*/") || !strings.Contains(html, `"Project Module":"#93c5fd"`) {
 		t.Error("type colors not injected into the template")
 	}
 }

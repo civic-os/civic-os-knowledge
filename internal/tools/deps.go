@@ -9,6 +9,7 @@ import (
 type Deps struct {
 	Bundle           *bundle.Bundle
 	Index            *search.Index
+	Types            *bundle.Registry             // concept types this deployment accepts; required
 	OnWrite          func(path string)            // called after create/update/move writes; noop if nil
 	OnSnapshot       func(snapshotRelPath string) // called after a snapshot is written; noop if nil
 	OnDelete         func(path string)            // called after a concept file is removed by a move; noop if nil
